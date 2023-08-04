@@ -33,20 +33,18 @@ class PromptPolypDataset(Dataset):
         norm_mask = mask
         if (max(mask.flatten()) > 1):
             norm_mask = mask / 255
-        plt.imshow(norm_mask)
-        plt.show()
         # Extract points of the mask
-        x_non0, y_non0 = np.where(norm_mask == 1)
+        width_non0, height_non0 = np.where(norm_mask == 1)
         # Randomly take a point
-        rand_xs, rand_ys = [], []
+        rand_widths, rand_heights = [], []
         for i in range(num_points):
-            index = np.random.choice(x_non0.shape[0], 1)
-            rand_x, rand_y = x_non0[index], y_non0[index]
-            rand_xs.append(rand_x)
-            rand_ys.append(rand_y)
-        rand_xs, rand_ys = np.array(rand_xs), np.array(rand_ys)
+            index = np.random.choice(width_non0.shape[0], 1)
+            rand_width, rand_height = width_non0[index], height_non0[index]
+            rand_widths.append(rand_width)
+            rand_heights.append(rand_height)
+        rand_widths, rand_heights = np.array(rand_widths), np.array(rand_heights)
 
-        return rand_xs, rand_ys
+        return rand_heights, rand_widths # (Y-axis, X-axis)
 
     def _sample_bbox(self, mask: np.ndarray, num_bboxes:int = 1):
         if isinstance(mask, torch.Tensor):
