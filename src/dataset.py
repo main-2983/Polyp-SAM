@@ -1,16 +1,9 @@
-from typing import Optional
-import os
-import glob
-
 import numpy as np
 from PIL import Image
-import matplotlib.pyplot as plt
 
 import torch
 from torch.utils.data import Dataset, DataLoader
 from skimage.measure import label, regionprops, find_contours
-
-from segment_anything.utils.transforms import ResizeLongestSide
 
 
 class PromptPolypDataset(Dataset):
@@ -103,19 +96,43 @@ class PromptPolypDataset(Dataset):
         # TODO: Support Augmentations
 
         image = self.rgb_loader(self.image_paths[index])
-        original_size = image.shape[:2]
         mask = self.binary_loader(self.mask_paths[index])
 
         # Extract Points
         rand_heights, rand_widths = self.uniform_sample_points(mask, num_points=self.num_points)
         point_prompts = np.hstack([rand_heights, rand_widths])
+        point_labels = np.ones((self.num_points, ))
 
         # Extract Boxes
         box_prompts = self.sample_box(mask)
+
+        # To Tensor
+        image = torch.as_tensor(image, dtype=torch.float)
+        mask = torch.as_tensor(mask, dtype=torch.long) # binary mask
+        point_prompts = torch.as_tensor(point_prompts, dtype=torch.float)
+        point_labels = torch.as_tensor(point_labels, dtype=torch.int)
+        box_prompts = torch.as_tensor(box_prompts, dtype=torch.float)
 
         return dict(
             image=image,
             mask=mask,
             point_prompts=point_prompts,
+            point_labels=point_labels,
             box_prompts=box_prompts
         )
+
+
+def create_dataloader(image_paths: list,
+                      mask_paths: list,
+                      image_size: int = 1024,
+                      num_points: int = 1,
+                      batch_size: int = 16,
+                      num_workers: int = 4,
+                      shuffle: bool = True):
+    dataset = PromptPolypDataset(image_paths, mask_paths, image_size, num_points)
+    dataloader = DataLoader(dataset,
+                            batch_size=batch_size,
+                            shuffle=shuffle,
+                            num_workers=num_workers)
+
+    return dataloader
