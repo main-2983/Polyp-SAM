@@ -17,11 +17,12 @@ class PromptPolypDataset(Dataset):
     def __init__(self,
                  image_paths: list,
                  mask_paths: list,
-                 image_size: int = 1024):
+                 image_size: int = 1024,
+                 num_points: int = 1):
         self.image_paths = image_paths
         self.mask_paths = mask_paths
         self.image_size = image_size
-        self.transform = ResizeLongestSide(image_size)
+        self.num_points = num_points
 
     def __len__(self):
         return len(self.image_paths)
@@ -46,7 +47,7 @@ class PromptPolypDataset(Dataset):
             rand_heights.append(rand_height)
         rand_widths, rand_heights = np.array(rand_widths), np.array(rand_heights)
 
-        return rand_heights, rand_widths
+        return rand_heights, rand_widths # Y-coord, X-coord
 
     def sample_box(self, mask: np.ndarray):
         """
@@ -86,7 +87,6 @@ class PromptPolypDataset(Dataset):
 
         return border
 
-
     def rgb_loader(self, path):
         with open(path, 'rb') as f:
             img = Image.open(f).resize((self.image_size, self.image_size), Image.BILINEAR)
@@ -101,12 +101,21 @@ class PromptPolypDataset(Dataset):
 
     def __getitem__(self, index):
         # TODO: Support Augmentations
-        # TODO: Support extract bboxes
 
         image = self.rgb_loader(self.image_paths[index])
+        original_size = image.shape[:2]
         mask = self.binary_loader(self.mask_paths[index])
 
         # Extract Points
+        rand_heights, rand_widths = self.uniform_sample_points(mask, num_points=self.num_points)
+        point_prompts = np.hstack([rand_heights, rand_widths])
 
+        # Extract Boxes
+        box_prompts = self.sample_box(mask)
 
-
+        return dict(
+            image=image,
+            mask=mask,
+            point_prompts=point_prompts,
+            box_prompts=box_prompts
+        )
