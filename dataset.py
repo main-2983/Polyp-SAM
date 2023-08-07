@@ -8,23 +8,25 @@ import matplotlib.pyplot as plt
 
 import torch
 from torch.utils.data import Dataset, DataLoader
+from skimage.measure import label, regionprops, find_contours
+
+from segment_anything.utils.transforms import ResizeLongestSide
 
 
 class PromptPolypDataset(Dataset):
     def __init__(self,
                  image_paths: list,
                  mask_paths: list,
-                 transform: Optional,
                  image_size: int = 1024):
         self.image_paths = image_paths
         self.mask_paths = mask_paths
-        self.transform = transform
         self.image_size = image_size
+        self.transform = ResizeLongestSide(image_size)
 
     def __len__(self):
         return len(self.image_paths)
 
-    def _uniform_sample_points(self, mask: np.ndarray, num_points:int = 1):
+    def uniform_sample_points(self, mask: np.ndarray, num_points:int = 1):
         """
         mask (np.ndarray): ground truth mask to sample points prompt from
         num_points (int): number of points to sample
@@ -44,16 +46,45 @@ class PromptPolypDataset(Dataset):
             rand_heights.append(rand_height)
         rand_widths, rand_heights = np.array(rand_widths), np.array(rand_heights)
 
-        return rand_heights, rand_widths # (Y-axis, X-axis)
+        return rand_heights, rand_widths
 
-    def _sample_bbox(self, mask: np.ndarray, num_bboxes:int = 1):
+    def sample_box(self, mask: np.ndarray):
+        """
+        TODO: Allow multiple Bboxes extraction
+        """
         if isinstance(mask, torch.Tensor):
             mask = mask.numpy()
-        boxes = np.zeros([num_bboxes, 4], dtype=np.int32)
+        boxes = []
 
-        for i in range(num_bboxes):
-            y_indices = np.where(np.any(mask, axis=0))[0]
+        mask = self._mask_to_border(mask)
+        lbl = label(mask)
+        props = regionprops(lbl)
 
+        for prop in props:
+            x1 = prop.bbox[1]
+            y1 = prop.bbox[0]
+
+            x2 = prop.bbox[3]
+            y2 = prop.bbox[2]
+
+            boxes.append(np.asarray([x1, y1, x2, y2]))
+
+        boxes = np.asarray(boxes)
+        
+        return boxes.astype(np.int32)
+
+    def _mask_to_border(self, mask: np.ndarray):
+        h, w = mask.shape[:2]
+        border = np.zeros((h, w))
+
+        contours = find_contours(mask, 128)
+        for contour in contours:
+            for c in contour:
+                x = int(c[0])
+                y = int(c[1])
+                border[x, y] = 255
+
+        return border
 
 
     def rgb_loader(self, path):
@@ -69,12 +100,13 @@ class PromptPolypDataset(Dataset):
             return img
 
     def __getitem__(self, index):
+        # TODO: Support Augmentations
+        # TODO: Support extract bboxes
+
         image = self.rgb_loader(self.image_paths[index])
         mask = self.binary_loader(self.mask_paths[index])
 
-        if self.transform is not None:
-            transformed = self.transform(image=image, mask=mask)
-            image = transformed["image"]
-            mask = transformed["mask"]
-            mask = mask / 255
+        # Extract Points
+
+
 

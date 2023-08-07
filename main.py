@@ -1,3 +1,4 @@
+from pprint import pprint
 import matplotlib.pyplot as plt
 import numpy as np
 import glob
@@ -22,25 +23,27 @@ def show_points(coords, labels, ax, marker_size=100):
     ax.scatter(neg_points[:, 0], neg_points[:, 1], color='red', marker='*', s=marker_size, edgecolor='white', linewidth=1.25)
 
 
+def show_box(box, ax):
+    x0, y0 = box[0], box[1]
+    w, h = box[2] - box[0], box[3] - box[1]
+    ax.add_patch(plt.Rectangle((x0, y0), w, h, edgecolor='green', facecolor=(0,0,0,0), lw=2))
+
+
 image_paths = glob.glob("/home/nguyen.mai/Workplace/sun-polyp/Dataset/TrainDataset/image/*")
 mask_paths = glob.glob("/home/nguyen.mai/Workplace/sun-polyp/Dataset/TrainDataset/mask/*")
 
-dataset = PromptPolypDataset(image_paths, mask_paths, None)
+dataset = PromptPolypDataset(image_paths, mask_paths)
+pprint(dataset.mask_paths.index('/home/nguyen.mai/Workplace/sun-polyp/Dataset/TrainDataset/mask/cju1cu1u2474n0878tt7v4tdr.png'))
 
-index = 0
+index = 1145
 mask = dataset.binary_loader(mask_paths[index])
 image = dataset.rgb_loader(image_paths[index])
 
-x_points, y_points = dataset._uniform_sample_points(mask, num_points=3)
-print(x_points.shape)
-print(x_points)
-print(y_points)
-points = np.hstack([x_points, y_points])
-print(points)
+bboxes = dataset.sample_box(mask)
 
-for i, point in enumerate(points):
+for i, box in enumerate(bboxes):
     plt.figure(i)
     plt.imshow(image)
     show_mask(mask/255, plt.gca())
-    show_points(point, 1, plt.gca())
+    show_box(box, plt.gca())
     plt.show()
