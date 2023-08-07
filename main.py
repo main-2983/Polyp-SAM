@@ -40,6 +40,7 @@ mask = dataset.binary_loader(mask_paths[index])
 image = dataset.rgb_loader(image_paths[index])
 
 bboxes = dataset.sample_box(mask)
+print(bboxes)
 
 for i, box in enumerate(bboxes):
     plt.figure(i)
@@ -47,3 +48,14 @@ for i, box in enumerate(bboxes):
     show_mask(mask/255, plt.gca())
     show_box(box, plt.gca())
     plt.show()
+
+# x_coords, y_coords = dataset.uniform_sample_points(mask, num_points=3)
+# points = np.hstack([y_coords, x_coords])
+# print(points)
+#
+# for i, point in enumerate(points):
+#     plt.figure(i)
+#     plt.imshow(image)
+#     show_mask(mask/255, plt.gca())
+#     show_points(point, 1, plt.gca())
+#     plt.show()
