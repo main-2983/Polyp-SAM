@@ -5,10 +5,7 @@ logging.basicConfig(level=logging.INFO)
 from glob import glob
 from tqdm import tqdm
 
-import matplotlib.pyplot as plt
-
 import torch
-import torch.nn as nn
 from torch.optim import *
 
 from segment_anything import sam_model_registry
@@ -50,12 +47,14 @@ def main():
     sam.to(device)
 
     # Dataloader
-    train_loader = create_dataloader(glob("/home/nguyen.mai/Workplace/sun-polyp/Dataset/TrainDataset/image/*"),
-                                     glob("/home/nguyen.mai/Workplace/sun-polyp/Dataset/TrainDataset/mask/*"),
-                                     batch_size=BATCH_SIZE,
-                                     num_workers=0)
+    train_dataset, train_loader = create_dataloader(
+        glob("/home/nguyen.mai/Workplace/sun-polyp/Dataset/TrainDataset/image/*"),
+        glob("/home/nguyen.mai/Workplace/sun-polyp/Dataset/TrainDataset/mask/*"),
+        batch_size=BATCH_SIZE,
+        num_workers=0
+    )
     # Loss
-    loss = StructureLoss()
+    loss_fn = StructureLoss()
 
     # Optimizer
     optimizer = AdamW(
@@ -71,26 +70,62 @@ def main():
     for epoch in range(MAX_EPOCHS):
         epoch_losses = []
 
+        # One epoch
         for batch in tqdm(train_loader, desc=f"epoch: {epoch}"):
-            image         = batch[0]
-            mask          = batch[1]
-            point_prompts = batch[2]
-            point_labels  = batch[3]
-            box_prompts   = batch[4]
+            images        = batch[0] # (B, C, H, W)
+            masks         = batch[1] # (B, C, H, W)
+            point_prompts = batch[2] # (B, num_points, 2)
+            point_labels  = batch[3] # (B, num_points)
+            box_prompts   = batch[4] # (B, num_boxes, 4)
+            image_size    = (train_dataset.image_size, train_dataset.image_size)
+            batch_size    = images.shape[0] # Batch size
 
             # Put to device
-            image = image.to(device)
-            mask  = mask.to(device)
+            images = images.to(device)
+            masks  = masks.to(device)
             point_prompts = point_prompts.to(device)
             point_labels = point_labels.to(device)
             box_prompts = box_prompts.to(device)
 
-            # Image encoder
-            input_images = torch.stack([sam.preprocess(img) for img in image], dim=0)
-            image_embeddings = sam.image_encoder(input_images)
+            input_images = torch.stack([sam.preprocess(img) for img in images], dim=0)
 
-            outputs = []
+            # Forward batch, process per-image
+            batch_loss = 0
+            for image, gt_mask, point_prompt, point_label, box_prompt in zip(
+                input_images, masks, point_prompts, point_labels, box_prompts
+            ):
+                image_embedding = sam.image_encoder(image[None])
+                point = (point_prompt[None, :, :], point_label[None, :]) # Expand batch dim
+                sparse_embeddings, dense_embeddings = sam.prompt_encoder(
+                    points=point,
+                    boxes=box_prompt,
+                    masks=None
+                )
+                low_res_masks, iou_predictions = sam.mask_decoder(
+                    image_embeddings=image_embedding,
+                    image_pe=sam.prompt_encoder.get_dense_pe(),
+                    sparse_prompt_embeddings=sparse_embeddings,
+                    dense_prompt_embeddings=dense_embeddings,
+                    multimask_output=False,
+                )
+                pred_masks = sam.postprocess_masks(
+                    low_res_masks,
+                    input_size=image.shape[-2:],
+                    original_size=image_size,
+                )
+                binary_masks = torch.sigmoid(pred_masks)
 
+                loss = loss_fn(binary_masks, gt_mask[None]) # expand batch dim
+                loss.backward()
+                batch_loss += loss.item()
+
+            optimizer.step()
+            optimizer.zero_grad()
+            epoch_losses.append(batch_loss / batch_size)
+
+        scheduler.step()
+        epoch_loss = sum(epoch_losses) / len(epoch_losses)
+        logging.info(f"Epoch: {epoch} \t Loss: {epoch_loss}")
 
 if __name__ == '__main__':
     main()
