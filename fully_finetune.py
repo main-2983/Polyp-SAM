@@ -25,12 +25,16 @@ def main():
 
     # Const
     # TODO: Make config
+    IMG_PATH = "/home/nguyen.mai/Workplace/sun-polyp/Dataset/TrainDataset/image/*"
+    MASK_PATH = "/home/nguyen.mai/Workplace/sun-polyp/Dataset/TrainDataset/mask/*"
+
     MAX_EPOCHS = 200
     LR = 4e-6
     WEIGHT_DECAY = 1e-4
     BATCH_SIZE = 2
 
     SAVE_PATH = "workdir/train/"
+    USE_BOX_PROMPT = False
 
     # Save
     date = datetime.date.today().strftime("%Y-%m-%d")
@@ -48,10 +52,11 @@ def main():
 
     # Dataloader
     train_dataset, train_loader = create_dataloader(
-        glob("/home/nguyen.mai/Workplace/sun-polyp/Dataset/TrainDataset/image/*"),
-        glob("/home/nguyen.mai/Workplace/sun-polyp/Dataset/TrainDataset/mask/*"),
+        glob(IMG_PATH),
+        glob(MASK_PATH),
         batch_size=BATCH_SIZE,
-        num_workers=0
+        num_workers=0,
+        use_box_prompt=USE_BOX_PROMPT
     )
     # Loss
     loss_fn = StructureLoss()
@@ -98,7 +103,7 @@ def main():
                 point = (point_prompt[None, :, :], point_label[None, :]) # Expand batch dim
                 sparse_embeddings, dense_embeddings = sam.prompt_encoder(
                     points=point,
-                    boxes=box_prompt,
+                    boxes=box_prompt if USE_BOX_PROMPT else None,
                     masks=None
                 )
                 low_res_masks, iou_predictions = sam.mask_decoder(

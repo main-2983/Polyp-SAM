@@ -13,11 +13,13 @@ class PromptPolypDataset(Dataset):
                  image_paths: list,
                  mask_paths: list,
                  image_size: int = 1024,
-                 num_points: int = 1):
+                 num_points: int = 1,
+                 use_box_prompt: bool = True):
         self.image_paths = image_paths
         self.mask_paths = mask_paths
         self.image_size = image_size
         self.num_points = num_points
+        self.use_box_prompt = use_box_prompt
 
     def __len__(self):
         return len(self.image_paths)
@@ -45,9 +47,6 @@ class PromptPolypDataset(Dataset):
         return rand_heights, rand_widths # Y-coord, X-coord
 
     def sample_box(self, mask: np.ndarray):
-        """
-        TODO: Allow multiple Bboxes extraction
-        """
         if isinstance(mask, torch.Tensor):
             mask = mask.numpy()
         boxes = []
@@ -82,6 +81,18 @@ class PromptPolypDataset(Dataset):
 
         return border
 
+    def _filter_box(self, boxes: np.ndarray):
+        """
+        Filter out box that does not meet the standard
+        """
+        new_boxes = []
+        for box in boxes:
+            w = box[2] - box[0]
+            h = box[3] - box[1]
+            if (w * h) > 20: # smaller than 20 pixel square
+                new_boxes.append(box)
+        return np.asarray(new_boxes)
+
     def rgb_loader(self, path):
         with open(path, 'rb') as f:
             img = Image.open(f).resize((self.image_size, self.image_size), Image.BILINEAR)
@@ -100,13 +111,38 @@ class PromptPolypDataset(Dataset):
         image = self.rgb_loader(self.image_paths[index])
         mask = self.binary_loader(self.mask_paths[index])
 
-        # Extract Points
-        rand_heights, rand_widths = self.uniform_sample_points(mask, num_points=self.num_points)
-        point_prompts = np.hstack([rand_heights, rand_widths])
-        point_labels = np.ones((self.num_points, ))
+        point_prompts = []
+        point_labels = []
 
-        # Extract Boxes
-        box_prompts = self.sample_box(mask)
+        if self.use_box_prompt:
+            # Extract Boxes
+            box_prompts = self.sample_box(mask)
+            box_prompts = self._filter_box(box_prompts)
+
+            # Extract Points within the box
+            num_box = box_prompts.shape[0]
+            for i in range(num_box):
+                # Get the box region
+                box = box_prompts[i]
+                # Extract the mask within the box region
+                _mask = mask[box[1] : box[3], box[0] : box[2]]
+                rand_height, rand_width = self.uniform_sample_points(_mask, num_points=self.num_points)
+                point_prompt = np.hstack([rand_height, rand_width])
+                point_label = np.ones((self.num_points, ))
+                point_prompts.append(point_prompt)
+                point_labels.append(point_label)
+            point_prompts = np.asarray(point_prompts)
+            point_labels = np.asarray(point_labels)
+        else:
+            # Extract Points
+            rand_height, rand_width = self.uniform_sample_points(mask, num_points=self.num_points)
+            point_prompt = np.hstack([rand_height, rand_width])
+            point_label = np.ones((self.num_points,))
+            point_prompts.append(point_prompt)
+            point_labels.append(point_label)
+            point_prompts = np.asarray(point_prompts)
+            point_labels = np.asarray(point_labels)
+            box_prompts = np.asarray([0] * self.num_points)
 
         # To Tensor
         image = ToTensor()(image)
@@ -123,8 +159,6 @@ def collate_fn(batch):
 
     images = torch.stack(images, dim=0)
     masks = torch.stack(masks, dim=0)
-    point_prompts = torch.stack(point_prompts, dim=0)
-    point_labels = torch.stack(point_labels, dim=0)
 
     # Process Box
     # Find max length
@@ -142,21 +176,42 @@ def collate_fn(batch):
         new_box_prompts.append(box_prompt)
     box_prompts = torch.stack(new_box_prompts, dim=0)
 
+    new_point_prompts = []
+    # Process Points: Pad in negative point at (0, 0)
+    for point_prompt in point_prompts:
+        num_to_pad = max_num_box - point_prompt.shape[0]
+        pad_prompt = torch.tensor([[0, 0]], dtype=torch.float)
+        for i in range(num_to_pad):
+            point_prompt = torch.concatenate([point_prompt, pad_prompt], dim=0)
+        new_point_prompts.append(point_prompt)
+    point_prompts = torch.stack(new_point_prompts, dim=0)
+
+    new_point_labels = []
+    # Process Labels: Pad in negative point at (0, 0)
+    for point_label in point_labels:
+        num_to_pad = max_num_box - point_label.shape[0]
+        pad_prompt = torch.tensor([[0]], dtype=torch.int)
+        for i in range(num_to_pad):
+            point_label = torch.concatenate([point_label, pad_prompt], dim=0)
+        new_point_labels.append(point_label)
+    point_labels = torch.stack(new_point_labels)
+
     return images, masks, point_prompts, point_labels, box_prompts
 
 
 def create_dataloader(image_paths: list,
                       mask_paths: list,
+                      use_box_prompt: bool = True,
                       image_size: int = 1024,
                       num_points: int = 1,
                       batch_size: int = 16,
                       num_workers: int = 4,
                       shuffle: bool = True):
-    dataset = PromptPolypDataset(image_paths, mask_paths, image_size, num_points)
+    dataset = PromptPolypDataset(image_paths, mask_paths, image_size, num_points, use_box_prompt)
     dataloader = DataLoader(dataset,
                             batch_size=batch_size,
                             shuffle=shuffle,
                             num_workers=num_workers,
                             collate_fn=collate_fn)
 
-    return dataloader
+    return dataset, dataloader
