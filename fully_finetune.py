@@ -5,6 +5,8 @@ logging.basicConfig(level=logging.INFO)
 from glob import glob
 from tqdm import tqdm
 
+import matplotlib.pyplot as plt
+
 import torch
 import torch.nn as nn
 from torch.optim import *
@@ -41,8 +43,10 @@ def main():
     os.makedirs(save_folder, exist_ok=True)
 
     # Model
-    sam: Sam = sam_model_registry["vit_b"]
-    device = "cuda:0"
+    sam: Sam = sam_model_registry["vit_b"]()
+    sam.pixel_mean = torch.Tensor([0.485, 0.456, 0.406]).view(-1, 1, 1)
+    sam.pixel_std = torch.Tensor([0.229, 0.224, 0.225]).view(-1, 1, 1)
+    device = "cpu"
     sam.to(device)
 
     # Dataloader
@@ -68,11 +72,18 @@ def main():
         epoch_losses = []
 
         for batch in tqdm(train_loader, desc=f"epoch: {epoch}"):
-            image         = batch["image"]
-            mask          = batch["mask"]
-            point_prompts = batch["point_prompts"]
-            point_labels  = batch["point_labels"]
-            box_prompts   = batch["box_prompts"]
+            image         = batch[0]
+            mask          = batch[1]
+            point_prompts = batch[2]
+            point_labels  = batch[3]
+            box_prompts   = batch[4]
+
+            # Put to device
+            image = image.to(device)
+            mask  = mask.to(device)
+            point_prompts = point_prompts.to(device)
+            point_labels = point_labels.to(device)
+            box_prompts = box_prompts.to(device)
 
             # Image encoder
             input_images = torch.stack([sam.preprocess(img) for img in image], dim=0)
@@ -81,4 +92,5 @@ def main():
             outputs = []
 
 
-
+if __name__ == '__main__':
+    main()
