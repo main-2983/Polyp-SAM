@@ -148,7 +148,9 @@ class PromptPolypDataset(Dataset):
         image = ToTensor()(image)
         mask = ToTensor()(mask) # binary mask
         point_prompts = torch.as_tensor(point_prompts, dtype=torch.float)
+        point_prompts = point_prompts.view(-1, 2)
         point_labels = torch.as_tensor(point_labels, dtype=torch.int)
+        point_labels = point_labels.view(-1)
         box_prompts = torch.as_tensor(box_prompts, dtype=torch.float)
 
         return image, mask, point_prompts, point_labels, box_prompts
