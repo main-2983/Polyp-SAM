@@ -1,8 +1,10 @@
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 import torch
 from torch.utils.data import Dataset, DataLoader
+from torchvision.transforms import ToTensor
 from skimage.measure import label, regionprops, find_contours
 
 
@@ -107,19 +109,40 @@ class PromptPolypDataset(Dataset):
         box_prompts = self.sample_box(mask)
 
         # To Tensor
-        image = torch.as_tensor(image, dtype=torch.float)
-        mask = torch.as_tensor(mask, dtype=torch.long) # binary mask
+        image = ToTensor()(image)
+        mask = ToTensor()(mask) # binary mask
         point_prompts = torch.as_tensor(point_prompts, dtype=torch.float)
         point_labels = torch.as_tensor(point_labels, dtype=torch.int)
         box_prompts = torch.as_tensor(box_prompts, dtype=torch.float)
 
-        return dict(
-            image=image,
-            mask=mask,
-            point_prompts=point_prompts,
-            point_labels=point_labels,
-            box_prompts=box_prompts
-        )
+        return image, mask, point_prompts, point_labels, box_prompts
+
+
+def collate_fn(batch):
+    images, masks, point_prompts, point_labels, box_prompts = zip(*batch)
+
+    images = torch.stack(images, dim=0)
+    masks = torch.stack(masks, dim=0)
+    point_prompts = torch.stack(point_prompts, dim=0)
+    point_labels = torch.stack(point_labels, dim=0)
+
+    # Process Box
+    # Find max length
+    max_num_box = 0
+    for box_prompt in box_prompts:
+        if box_prompt.shape[0] > max_num_box:
+            max_num_box = box_prompt.shape[0]
+    # Pad other with box [0, 0, 0, 0]
+    new_box_prompts = []
+    for box_prompt in box_prompts:
+        num_to_pad = max_num_box - box_prompt.shape[0]
+        pad_prompt = torch.tensor([[0, 0, 0, 0]], dtype=torch.float)
+        for i in range(num_to_pad):
+            box_prompt = torch.concatenate([box_prompt, pad_prompt], dim=0)
+        new_box_prompts.append(box_prompt)
+    box_prompts = torch.stack(new_box_prompts, dim=0)
+
+    return images, masks, point_prompts, point_labels, box_prompts
 
 
 def create_dataloader(image_paths: list,
@@ -133,6 +156,7 @@ def create_dataloader(image_paths: list,
     dataloader = DataLoader(dataset,
                             batch_size=batch_size,
                             shuffle=shuffle,
-                            num_workers=num_workers)
+                            num_workers=num_workers,
+                            collate_fn=collate_fn)
 
     return dataloader
