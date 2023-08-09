@@ -192,7 +192,7 @@ def collate_fn(batch):
     # Process Labels: Pad in negative point at (0, 0)
     for point_label in point_labels:
         num_to_pad = max_num_box - point_label.shape[0]
-        pad_prompt = torch.tensor([[0]], dtype=torch.int)
+        pad_prompt = torch.tensor([0], dtype=torch.int)
         for i in range(num_to_pad):
             point_label = torch.concatenate([point_label, pad_prompt], dim=0)
         new_point_labels.append(point_label)
