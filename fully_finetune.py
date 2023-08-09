@@ -26,6 +26,7 @@ def main():
     # Const
     # TODO: Make config
     PRETRAINED_PATH = "ckpts/sam_vit_b_01ec64.pth"
+    MODEL_SIZE = "vit_b"
 
     IMG_PATH = "/home/nguyen.mai/Workplace/sun-polyp/Dataset/TrainDataset/image/*"
     MASK_PATH = "/home/nguyen.mai/Workplace/sun-polyp/Dataset/TrainDataset/mask/*"
@@ -49,7 +50,7 @@ def main():
     os.makedirs(save_folder, exist_ok=True)
 
     # Model
-    sam: Sam = sam_model_registry["vit_b"](PRETRAINED_PATH)
+    sam: Sam = sam_model_registry[MODEL_SIZE](PRETRAINED_PATH)
     sam.pixel_mean = torch.Tensor([0.485, 0.456, 0.406]).view(-1, 1, 1)
     sam.pixel_std = torch.Tensor([0.229, 0.224, 0.225]).view(-1, 1, 1)
     device = "cpu"
