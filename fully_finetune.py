@@ -25,8 +25,12 @@ def main():
 
     # Const
     # TODO: Make config
+    PRETRAINED_PATH = "ckpts/sam_vit_b_01ec64.pth"
+
     IMG_PATH = "/home/nguyen.mai/Workplace/sun-polyp/Dataset/TrainDataset/image/*"
     MASK_PATH = "/home/nguyen.mai/Workplace/sun-polyp/Dataset/TrainDataset/mask/*"
+    NUM_WORKERS = 0
+    USE_BOX_PROMPT = False
 
     MAX_EPOCHS = 200
     LR = 4e-6
@@ -34,7 +38,8 @@ def main():
     BATCH_SIZE = 2
 
     SAVE_PATH = "workdir/train/"
-    USE_BOX_PROMPT = False
+    EPOCH_TO_SAVE = 100
+    SAVE_FREQUENCY = 10
 
     # Save
     date = datetime.date.today().strftime("%Y-%m-%d")
@@ -44,7 +49,7 @@ def main():
     os.makedirs(save_folder, exist_ok=True)
 
     # Model
-    sam: Sam = sam_model_registry["vit_b"]()
+    sam: Sam = sam_model_registry["vit_b"](PRETRAINED_PATH)
     sam.pixel_mean = torch.Tensor([0.485, 0.456, 0.406]).view(-1, 1, 1)
     sam.pixel_std = torch.Tensor([0.229, 0.224, 0.225]).view(-1, 1, 1)
     device = "cpu"
@@ -55,7 +60,7 @@ def main():
         glob(IMG_PATH),
         glob(MASK_PATH),
         batch_size=BATCH_SIZE,
-        num_workers=0,
+        num_workers=NUM_WORKERS,
         use_box_prompt=USE_BOX_PROMPT
     )
     # Loss
@@ -131,6 +136,10 @@ def main():
         scheduler.step()
         epoch_loss = sum(epoch_losses) / len(epoch_losses)
         logging.info(f"Epoch: {epoch} \t Loss: {epoch_loss}")
+
+        # Saving
+        if epoch >= EPOCH_TO_SAVE and epoch % SAVE_FREQUENCY == 0:
+            torch.save(sam.state_dict(), f"{SAVE_PATH}/ckpts/{epoch}.pt")
 
 if __name__ == '__main__':
     main()
