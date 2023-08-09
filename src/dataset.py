@@ -125,7 +125,10 @@ class PromptPolypDataset(Dataset):
                 # Get the box region
                 box = box_prompts[i]
                 # Extract the mask within the box region
-                _mask = mask[box[1] : box[3], box[0] : box[2]]
+                region = mask[box[1] : box[3], box[0] : box[2]]
+                # Create the fake original mask with the extracted mask above
+                _mask = np.zeros(mask.shape, dtype=np.uint8)
+                _mask[box[1] : box[3], box[0] : box[2]] = region
                 rand_height, rand_width = self.uniform_sample_points(_mask, num_points=self.num_points)
                 point_prompt = np.hstack([rand_height, rand_width])
                 point_label = np.ones((self.num_points, ))
@@ -217,3 +220,21 @@ def create_dataloader(image_paths: list,
                             collate_fn=collate_fn)
 
     return dataset, dataloader
+
+
+class UnNormalize(object):
+    def __init__(self, mean, std):
+        self.mean = mean
+        self.std = std
+
+    def __call__(self, tensor):
+        """
+        Args:
+            tensor (Tensor): Tensor image of size (C, H, W) to be normalized.
+        Returns:
+            Tensor: Normalized image.
+        """
+        for t, m, s in zip(tensor, self.mean, self.std):
+            t.mul_(s).add_(m)
+            # The normalize code -> t.sub_(m).div_(s)
+        return tensor
