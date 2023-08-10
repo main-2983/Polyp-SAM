@@ -5,6 +5,9 @@ logging.basicConfig(level=logging.INFO)
 from glob import glob
 from tqdm import tqdm
 
+from accelerate import Accelerator
+from accelerate.utils import DistributedDataParallelKwargs
+
 import torch
 from torch.optim import *
 
@@ -13,6 +16,7 @@ from segment_anything.modeling import Sam
 from src.dataset import create_dataloader
 from src.losses import StructureLoss
 from src.scheduler import LinearWarmupCosineAnnealingLR
+from src.models import PolypSAM
 
 try:
     import wandb
@@ -31,7 +35,7 @@ def main():
     IMG_PATH = "/home/nguyen.mai/Workplace/sun-polyp/Dataset/TrainDataset/image/*"
     MASK_PATH = "/home/nguyen.mai/Workplace/sun-polyp/Dataset/TrainDataset/mask/*"
     NUM_WORKERS = 0
-    USE_BOX_PROMPT = False
+    USE_BOX_PROMPT = True
 
     MAX_EPOCHS = 200
     LR = 4e-6
@@ -49,12 +53,15 @@ def main():
     save_folder = f"{SAVE_PATH}/{time_str}"
     os.makedirs(save_folder, exist_ok=True)
 
+    # Init Accelerate
+    ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=True)
+    accelerator = Accelerator(kwargs_handlers=[ddp_kwargs])
+
     # Model
     sam: Sam = sam_model_registry[MODEL_SIZE](PRETRAINED_PATH)
-    sam.pixel_mean = torch.Tensor([0.485, 0.456, 0.406]).view(-1, 1, 1)
-    sam.pixel_std = torch.Tensor([0.229, 0.224, 0.225]).view(-1, 1, 1)
-    device = "cpu"
-    sam.to(device)
+    model = PolypSAM(sam.image_encoder,
+                     sam.mask_decoder,
+                     sam.prompt_encoder)
 
     # Dataloader
     train_dataset, train_loader = create_dataloader(
@@ -77,6 +84,10 @@ def main():
     scheduler = LinearWarmupCosineAnnealingLR(optimizer, warmup_epochs=30, max_epochs=MAX_EPOCHS,
                                               warmup_start_lr=5e-7, eta_min=1e-6)
 
+    model, optimizer, train_loader, scheduler = accelerator.prepare(
+        model, optimizer, train_loader, scheduler
+    )
+
     # Training loop
     for epoch in range(MAX_EPOCHS):
         epoch_losses = []
@@ -91,43 +102,26 @@ def main():
             image_size    = (train_dataset.image_size, train_dataset.image_size)
             batch_size    = images.shape[0] # Batch size
 
-            # Put to device
-            images = images.to(device)
-            masks  = masks.to(device)
-            point_prompts = point_prompts.to(device)
-            point_labels = point_labels.to(device)
-            box_prompts = box_prompts.to(device)
-
-            input_images = torch.stack([sam.preprocess(img) for img in images], dim=0)
+            input_images = torch.stack([model.module.preprocess(img) for img in images], dim=0)
 
             # Forward batch, process per-image
             batch_loss = 0
             for image, gt_mask, point_prompt, point_label, box_prompt in zip(
                 input_images, masks, point_prompts, point_labels, box_prompts
             ):
-                image_embedding = sam.image_encoder(image[None])
+                # Prepare input
                 point = (point_prompt[None, :, :], point_label[None, :]) # Expand batch dim
-                sparse_embeddings, dense_embeddings = sam.prompt_encoder(
-                    points=point,
-                    boxes=box_prompt if USE_BOX_PROMPT else None,
-                    masks=None
-                )
-                low_res_masks, iou_predictions = sam.mask_decoder(
-                    image_embeddings=image_embedding,
-                    image_pe=sam.prompt_encoder.get_dense_pe(),
-                    sparse_prompt_embeddings=sparse_embeddings,
-                    dense_prompt_embeddings=dense_embeddings,
-                    multimask_output=False,
-                )
-                pred_masks = sam.postprocess_masks(
-                    low_res_masks,
-                    input_size=image.shape[-2:],
-                    original_size=image_size,
-                )
+                model_input = {
+                    "image": image,
+                    "point_prompt": point,
+                    "box_prompt": box_prompt if USE_BOX_PROMPT else None,
+                    "image_size": image_size
+                }
+                pred_masks = model(model_input)
                 binary_masks = torch.sigmoid(pred_masks)
 
                 loss = loss_fn(binary_masks, gt_mask[None]) # expand batch dim
-                loss.backward()
+                accelerator.backward(loss)
                 batch_loss += loss.item()
 
             optimizer.step()
