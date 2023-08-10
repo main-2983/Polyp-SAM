@@ -51,7 +51,7 @@ def main():
     time = datetime.datetime.now().strftime("%H%M%S")
     time_str = date + "_" + time
     save_folder = f"{SAVE_PATH}/{time_str}"
-    os.makedirs(save_folder, exist_ok=True)
+    os.makedirs(f"{save_folder}/ckpts", exist_ok=True)
 
     # Init Accelerate
     ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=True)
