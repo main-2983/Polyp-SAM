@@ -120,7 +120,7 @@ def main():
                 pred_masks = model(model_input)
                 binary_masks = torch.sigmoid(pred_masks)
 
-                loss = loss_fn(binary_masks, gt_mask[None]) # expand batch dim
+                loss = loss_fn(binary_masks, gt_mask[:, None, :, :]) # expand channel dim
                 accelerator.backward(loss)
                 batch_loss += loss.item()
 
