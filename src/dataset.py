@@ -89,7 +89,7 @@ class PromptPolypDataset(Dataset):
         for box in boxes:
             w = box[2] - box[0]
             h = box[3] - box[1]
-            if (w * h) > 20: # smaller than 20 pixel square
+            if (w * h) > 200: # smaller than 200 pixel square
                 new_boxes.append(box)
         return np.asarray(new_boxes)
 
