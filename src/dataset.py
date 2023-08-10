@@ -183,7 +183,7 @@ def collate_fn(batch):
     # Process Points: Pad in negative point at (0, 0)
     for point_prompt in point_prompts:
         num_to_pad = max_num_box - point_prompt.shape[0]
-        pad_prompt = torch.zeros((point_prompt.shape), dtype=torch.float)
+        pad_prompt = torch.zeros((1, *point_prompt.shape[1:]), dtype=torch.float)
         for i in range(num_to_pad):
             point_prompt = torch.concatenate([point_prompt, pad_prompt], dim=0)
         new_point_prompts.append(point_prompt)
@@ -193,7 +193,7 @@ def collate_fn(batch):
     # Process Labels: Pad in negative point at (0, 0)
     for point_label in point_labels:
         num_to_pad = max_num_box - point_label.shape[0]
-        pad_prompt = torch.zeros((point_label.shape), dtype=torch.int)
+        pad_prompt = torch.zeros((1, *point_label.shape[1:]), dtype=torch.int)
         for i in range(num_to_pad):
             point_label = torch.concatenate([point_label, pad_prompt], dim=0)
         new_point_labels.append(point_label)
