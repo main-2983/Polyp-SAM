@@ -150,11 +150,9 @@ class PromptPolypDataset(Dataset):
         # To Tensor
         image = ToTensor()(image)
         mask = ToTensor()(mask) # binary mask
-        point_prompts = torch.as_tensor(point_prompts, dtype=torch.float)
-        point_prompts = point_prompts.view(-1, 2)
-        point_labels = torch.as_tensor(point_labels, dtype=torch.int)
-        point_labels = point_labels.view(-1)
-        box_prompts = torch.as_tensor(box_prompts, dtype=torch.float)
+        point_prompts = torch.as_tensor(point_prompts, dtype=torch.float) # (num_box, points_per_box, 2)
+        point_labels = torch.as_tensor(point_labels, dtype=torch.int) # (num_box, points_per_box)
+        box_prompts = torch.as_tensor(box_prompts, dtype=torch.float) # (num_box, 4)
 
         return image, mask, point_prompts, point_labels, box_prompts
 
@@ -185,7 +183,7 @@ def collate_fn(batch):
     # Process Points: Pad in negative point at (0, 0)
     for point_prompt in point_prompts:
         num_to_pad = max_num_box - point_prompt.shape[0]
-        pad_prompt = torch.tensor([[0, 0]], dtype=torch.float)
+        pad_prompt = torch.zeros((point_prompt.shape), dtype=torch.float)
         for i in range(num_to_pad):
             point_prompt = torch.concatenate([point_prompt, pad_prompt], dim=0)
         new_point_prompts.append(point_prompt)
@@ -195,7 +193,7 @@ def collate_fn(batch):
     # Process Labels: Pad in negative point at (0, 0)
     for point_label in point_labels:
         num_to_pad = max_num_box - point_label.shape[0]
-        pad_prompt = torch.tensor([0], dtype=torch.int)
+        pad_prompt = torch.zeros((point_label.shape), dtype=torch.int)
         for i in range(num_to_pad):
             point_label = torch.concatenate([point_label, pad_prompt], dim=0)
         new_point_labels.append(point_label)

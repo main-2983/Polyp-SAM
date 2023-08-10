@@ -96,8 +96,8 @@ def main():
         for batch in tqdm(train_loader, desc=f"epoch: {epoch}"):
             images        = batch[0] # (B, C, H, W)
             masks         = batch[1] # (B, C, H, W)
-            point_prompts = batch[2] # (B, num_points, 2)
-            point_labels  = batch[3] # (B, num_points)
+            point_prompts = batch[2] # (B, num_boxes, points_per_box, 2)
+            point_labels  = batch[3] # (B, num_boxes, points_per_box)
             box_prompts   = batch[4] # (B, num_boxes, 4)
             image_size    = (train_dataset.image_size, train_dataset.image_size)
             batch_size    = images.shape[0] # Batch size
@@ -110,7 +110,7 @@ def main():
                 input_images, masks, point_prompts, point_labels, box_prompts
             ):
                 # Prepare input
-                point = (point_prompt[None, :, :], point_label[None, :]) # Expand batch dim
+                point = (point_prompt, point_label)
                 model_input = {
                     "image": image,
                     "point_prompt": point,
