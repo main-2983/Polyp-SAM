@@ -1,3 +1,5 @@
+from typing import List
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -24,4 +26,19 @@ class StructureLoss(nn.Module):
 
     def forward(self, pred, mask):
         loss = self.weight * self.criterion(pred, mask)
+        return loss
+
+
+class CombinedLoss(nn.Module):
+    def __init__(self,
+                 losses: List[nn.Module]):
+        super(CombinedLoss, self).__init__()
+        self.losses = []
+        for loss in losses:
+            self.losses.append(loss)
+
+    def forward(self, pred, mask):
+        loss = 0
+        for loss_fn in self.losses:
+            loss += loss_fn(pred, mask)
         return loss

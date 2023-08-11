@@ -9,12 +9,15 @@ from accelerate import Accelerator
 from accelerate.utils import DistributedDataParallelKwargs
 
 import torch
+import torch.nn as nn
 from torch.optim import *
+
+from segmentation_models_pytorch.losses import DiceLoss
 
 from segment_anything import sam_model_registry
 from segment_anything.modeling import Sam
 from src.dataset import create_dataloader
-from src.losses import StructureLoss
+from src.losses import StructureLoss, CombinedLoss
 from src.scheduler import LinearWarmupCosineAnnealingLR
 from src.models import PolypSAM
 
@@ -72,7 +75,10 @@ def main():
         use_box_prompt=USE_BOX_PROMPT
     )
     # Loss
-    loss_fn = StructureLoss()
+    loss_fn = CombinedLoss([
+        DiceLoss(mode="binary", from_logits=True),
+        nn.BCEWithLogitsLoss(reduction='mean')
+    ])
 
     # Optimizer
     optimizer = AdamW(
@@ -118,9 +124,8 @@ def main():
                     "image_size": image_size
                 }
                 pred_masks = model(model_input)
-                binary_masks = torch.sigmoid(pred_masks)
 
-                loss = loss_fn(binary_masks, gt_mask[:, None, :, :]) # expand channel dim
+                loss = loss_fn(pred_masks, gt_mask[:, None, :, :]) # expand channel dim
                 accelerator.backward(loss)
                 batch_loss += loss.item()
 
