@@ -114,42 +114,35 @@ class PromptPolypDataset(Dataset):
         point_prompts = []
         point_labels = []
 
-        if self.use_box_prompt:
-            # Extract Boxes
-            box_prompts = self.sample_box(mask)
-            box_prompts = self._filter_box(box_prompts)
+        # Extract Boxes
+        boxes = self.sample_box(mask)
+        boxes = self._filter_box(boxes)
 
-            # Extract Points and Masks wrt box
-            num_box = box_prompts.shape[0]
-            masks = []
-            for i in range(num_box):
-                # Get the box region
-                box = box_prompts[i]
-                # Extract the mask within the box region
-                region = mask[box[1] : box[3], box[0] : box[2]]
-                # Create the fake original mask with the extracted mask above
-                _mask = np.zeros(mask.shape, dtype=np.uint8)
-                _mask[box[1] : box[3], box[0] : box[2]] = region
-                rand_height, rand_width = self.uniform_sample_points(_mask, num_points=self.num_points)
-                point_prompt = np.hstack([rand_height, rand_width])
-                point_label = np.ones((self.num_points, ))
-                point_prompts.append(point_prompt)
-                point_labels.append(point_label)
-                masks.append(_mask)
-            point_prompts = np.asarray(point_prompts)
-            point_labels = np.asarray(point_labels)
-            masks = np.asarray(masks).transpose((1, 2, 0))
-        else:
-            # Extract Points
-            rand_height, rand_width = self.uniform_sample_points(mask, num_points=self.num_points)
+        # Extract Points and Masks wrt box
+        num_box = boxes.shape[0]
+        masks = []
+        for i in range(num_box):
+            # Get the box region
+            box = boxes[i]
+            # Extract the mask within the box region
+            region = mask[box[1]: box[3], box[0]: box[2]]
+            # Create the fake original mask with the extracted mask above
+            _mask = np.zeros(mask.shape, dtype=np.uint8)
+            _mask[box[1]: box[3], box[0]: box[2]] = region
+            rand_height, rand_width = self.uniform_sample_points(_mask, num_points=self.num_points)
             point_prompt = np.hstack([rand_height, rand_width])
             point_label = np.ones((self.num_points,))
             point_prompts.append(point_prompt)
             point_labels.append(point_label)
-            point_prompts = np.asarray(point_prompts)
-            point_labels = np.asarray(point_labels)
-            box_prompts = np.asarray([0] * self.num_points)
-            masks = np.asarray(mask)
+            masks.append(_mask)
+
+        point_prompts = np.asarray(point_prompts)
+        point_labels = np.asarray(point_labels)
+        masks = np.asarray(masks).transpose((1, 2, 0))
+        if self.use_box_prompt:
+            box_prompts = boxes
+        else:
+            box_prompts = np.asarray([[0] * 4])
 
         # To Tensor
         image = ToTensor()(image)
@@ -193,7 +186,7 @@ def collate_fn(batch):
     point_prompts = torch.stack(new_point_prompts, dim=0)
 
     new_point_labels = []
-    # Process Labels: Pad in negative point at (0, 0)
+    # Process Labels: Pad in negative label
     for point_label in point_labels:
         num_to_pad = max_num_box - point_label.shape[0]
         pad_prompt = torch.zeros((1, *point_label.shape[1:]), dtype=torch.int)
