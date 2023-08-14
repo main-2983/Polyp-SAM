@@ -28,7 +28,8 @@ def val(checkpoint,
     metric_weights = [0.1253, 0.0777, 0.4762, 0.0752, 0.2456]
 
     if (store):
-        os.makedirs(store_path, exist_ok=True)
+        for dataset_name in dataset_names:
+            os.makedirs(f"{store_path}/autoSAM/{dataset_name}", exist_ok=True)
 
     for dataset_name in dataset_names:
         data_path = f'{test_folder}/{dataset_name}'
@@ -57,13 +58,13 @@ def val(checkpoint,
                     final_mask = np.logical_or(final_mask, anns[i]["segmentation"])
             else:
                 final_mask = np.zeros(shape)
-            gts.append(mask[:, :, 0] if mask.ndim == 3 else mask.shape)
+            gts.append(mask[:, :, 0] if mask.ndim == 3 else mask)
             prs.append(final_mask)
             if (store):
                 plt.figure(figsize=(10, 10))
                 plt.imshow(final_mask)
                 plt.axis("off")
-                plt.savefig(f"{store_path}/{dataset_name}/{name}.png")
+                plt.savefig(f"{store_path}/autoSAM/{dataset_name}/{name}.png")
         mean_iou, mean_dice, _, _ = get_scores(gts, prs)
         all_dices.append(mean_dice)
         table.append([dataset_name, mean_iou, mean_dice])
