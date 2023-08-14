@@ -16,13 +16,21 @@ class PolypSAM(nn.Module):
                  mask_decoder: MaskDecoder,
                  prompt_encoder: PromptEncoder,
                  pixel_mean: List[float] = [0.485, 0.456, 0.406],
-                 pixel_std: List[float] = [0.229, 0.224, 0.225]):
+                 pixel_std: List[float] = [0.229, 0.224, 0.225],
+                 freeze: List[nn.Module] = None):
         super(PolypSAM, self).__init__()
         self.image_encoder = image_encoder
         self.mask_decoder = mask_decoder
         self.prompt_encoder = prompt_encoder
         self.register_buffer("pixel_mean", torch.Tensor(pixel_mean).view(-1, 1, 1), False)
         self.register_buffer("pixel_std", torch.Tensor(pixel_std).view(-1, 1, 1), False)
+
+        if freeze is not None:
+            for module in freeze:
+                for m in [self.image_encoder, self.mask_decoder, self.prompt_encoder]:
+                    if isinstance(m, type(module)):
+                        for param in m.parameters():
+                            param.requires_grad = False
 
     def forward(self,
                 input: Dict[str, Any],
@@ -98,3 +106,40 @@ class PolypSAM(nn.Module):
         padw = self.image_encoder.img_size - w
         x = F.pad(x, (0, padw, 0, padh))
         return x
+
+
+class IterativePolypSAM(PolypSAM):
+    """ This returns low_res_masks and iou_predictions (see `forward`)
+    to use for next iterative forward
+    """
+    def __init__(self,
+                 *args,
+                 **kwargs):
+        super(IterativePolypSAM, self).__init__(*args, **kwargs)
+
+    def forward(self,
+                input: Dict[str, Any],
+                multimask_output: bool = False):
+        """
+        This forward function does not accept batch input
+        """
+
+        image = input.get("image")
+
+        image_embedding = self.image_encoder(image[None])
+
+        points = input.get("point_prompt")
+        sparse_embeddings, dense_embeddings = self.prompt_encoder(
+            points=points,
+            boxes=input.get("box_prompt", None),
+            masks=input.get("mask_input", None),
+        )
+        low_res_masks, iou_predictions = self.mask_decoder(
+            image_embeddings=image_embedding,
+            image_pe=self.prompt_encoder.get_dense_pe(),
+            sparse_prompt_embeddings=sparse_embeddings,
+            dense_prompt_embeddings=dense_embeddings,
+            multimask_output=multimask_output,
+        )
+
+        return low_res_masks, iou_predictions
