@@ -14,17 +14,19 @@ class PromptPolypDataset(Dataset):
                  mask_paths: list,
                  image_size: int = 1024,
                  num_points: int = 1,
-                 use_box_prompt: bool = True):
+                 use_box_prompt: bool = True,
+                 use_center_points: bool = False):
         self.image_paths = image_paths
         self.mask_paths = mask_paths
         self.image_size = image_size
         self.num_points = num_points
         self.use_box_prompt = use_box_prompt
+        self.use_center_points = use_center_points
 
     def __len__(self):
         return len(self.image_paths)
 
-    def uniform_sample_points(self, mask: np.ndarray, num_points:int = 1):
+    def uniform_sample_points(self, mask: np.ndarray, num_points: int = 1):
         """
         mask (np.ndarray): ground truth mask to sample points prompt from
         num_points (int): number of points to sample
@@ -45,6 +47,22 @@ class PromptPolypDataset(Dataset):
         rand_widths, rand_heights = np.array(rand_widths), np.array(rand_heights)
 
         return rand_heights, rand_widths # Y-coord, X-coord
+
+    def sample_center_point(self, mask: np.ndarray, num_points: int = 1):
+        # If the mask is not yet normalized
+        norm_mask = mask
+        if (max(mask.flatten()) > 1):
+            norm_mask = mask / 255
+
+        flat_mask = norm_mask.flatten()
+        split = np.unique(np.sort(flat_mask), return_index=True)[1]
+        points = []
+        for idx in np.split(flat_mask.argsort(), split)[2:][:num_points]:
+            points.append(np.array(np.unravel_index(idx, mask.shape)).mean(axis=1))
+        points = np.asarray(points, dtype=np.int_) # (Width, Height)
+        # Turn to (Height, Width)
+        points = np.asarray([point[::-1] for point in points])
+        return points
 
     def sample_box(self, mask: np.ndarray):
         if isinstance(mask, torch.Tensor):
@@ -129,8 +147,11 @@ class PromptPolypDataset(Dataset):
             # Create the fake original mask with the extracted mask above
             _mask = np.zeros(mask.shape, dtype=np.uint8)
             _mask[box[1]: box[3], box[0]: box[2]] = region
-            rand_height, rand_width = self.uniform_sample_points(_mask, num_points=self.num_points)
-            point_prompt = np.hstack([rand_height, rand_width])
+            if not self.use_center_points:
+                rand_height, rand_width = self.uniform_sample_points(_mask, num_points=self.num_points)
+                point_prompt = np.hstack([rand_height, rand_width])
+            else:
+                point_prompt = self.sample_center_point(_mask, num_points=self.num_points)
             point_label = np.ones((self.num_points,))
             point_prompts.append(point_prompt)
             point_labels.append(point_label)
@@ -211,12 +232,13 @@ def collate_fn(batch):
 def create_dataloader(image_paths: list,
                       mask_paths: list,
                       use_box_prompt: bool = True,
+                      use_center_points: bool = False,
                       image_size: int = 1024,
                       num_points: int = 1,
                       batch_size: int = 16,
                       num_workers: int = 4,
                       shuffle: bool = True):
-    dataset = PromptPolypDataset(image_paths, mask_paths, image_size, num_points, use_box_prompt)
+    dataset = PromptPolypDataset(image_paths, mask_paths, image_size, num_points, use_box_prompt, use_center_points)
     dataloader = DataLoader(dataset,
                             batch_size=batch_size,
                             shuffle=shuffle,
