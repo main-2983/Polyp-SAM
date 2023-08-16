@@ -120,12 +120,12 @@ def main():
             input_images = torch.stack([model.module.preprocess(img) for img in images], dim=0)
 
             # Forward batch, process per-image
-            batch_loss = 0
+            batch_loss = []
             for image, gt_mask, point_prompt, point_label, box_prompt in zip(
                     input_images, masks, point_prompts, point_labels, box_prompts
             ):
-                # Prepare iteration 0 inputs
-                iter_losses = 0
+                # Prepare round 0 inputs
+                round_loss = 0
                 mask_input = None
                 point = (point_prompt, point_label)
                 for round in range(ROUND_PER_EPOCH):
@@ -154,8 +154,9 @@ def main():
                     )
                     loss = loss_fn(upscaled_masks, gt_mask[:, None, :, :])  # expand channel dim
                     accelerator.backward(loss)
-                    iter_losses += loss.item()
-                    selected_masks = selected_masks.detach()
+                    round_loss += loss.item()
+                    # TODO: check on this after, is this correct?
+                    selected_masks = selected_masks.detach() # Detach from the computation grad of next round
 
                     # Find the error region mask between selected_masks and ground truth, then sample points
                     with torch.no_grad():
@@ -192,8 +193,22 @@ def main():
                             mask_to_sample = false_positive_mask
                             rand = -1
                         # Step 4.3: RANDOMLY Sample point from mask
-                        height_point_prompt, width_point_prompt = uniform_sample_points(mask_to_sample, num_points=1)
+                        height_point_prompt, width_point_prompt = uniform_sample_points(mask_to_sample,
+                                                                                        num_points=1)
                         _point_prompt = np.hstack([height_point_prompt, width_point_prompt])  # (1, 2)
+                        if _point_prompt.shape[0] <= 0: # can't sample any points
+                            # Resample with different mask
+                            if rand == 1:
+                                mask_to_sample = false_positive_mask
+                                rand = -1
+                            else:
+                                mask_to_sample = false_negative_mask
+                                rand = 1
+                            height_point_prompt, width_point_prompt = uniform_sample_points(mask_to_sample,
+                                                                                            num_points=1)
+                            _point_prompt = np.hstack([height_point_prompt, width_point_prompt])  # (1, 2)
+                            if _point_prompt.shape[0] <= 0: # If still no points -> 100% correct mask
+                                break # Exit the Loop early
                         _point_prompt = np.expand_dims(_point_prompt, axis=0)  # (1, 1, 2)
                         if rand == 1:  # If sampled from false negative, insert label 1
                             _point_label = np.ones((1,))
@@ -201,12 +216,29 @@ def main():
                             _point_label = np.zeros((1,))
                         _point_label = np.expand_dims(_point_label, axis=0)  # (1, 1)
 
-                        new_point_prompts = torch.as_tensor(_point_prompt, device=device)
-                        new_point_labels = torch.as_tensor(_point_label, device=device)
+                        new_point_prompts = torch.as_tensor(_point_prompt, device=device, dtype=torch.float)
+                        new_point_labels = torch.as_tensor(_point_label, device=device, dtype=torch.int)
 
                         # Step 5: Update the input for next round
                         point = (new_point_prompts, new_point_labels)
                         mask_input = selected_masks
+                # End of all round
+                batch_loss.append(round_loss)
+
+            # After batch
+            optimizer.step()
+            optimizer.zero_grad()
+            batch_loss = sum(batch_loss) / batch_size
+            epoch_losses.append(batch_loss)
+
+        # After epoch
+        scheduler.step()
+        epoch_loss = sum(epoch_losses) / len(epoch_losses)
+        logging.info(f"Epoch: {epoch} \t Loss: {epoch_loss}")
+
+        # Saving
+        if epoch >= EPOCH_TO_SAVE and epoch % SAVE_FREQUENCY == 0:
+            torch.save(sam.state_dict(), f"{save_folder}/ckpts/{epoch}.pt")
 
 
 if __name__ == '__main__':
