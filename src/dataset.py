@@ -1,3 +1,4 @@
+from typing import Union
 import numpy as np
 from PIL import Image, ImageFile
 ImageFile.LOAD_TRUNCATED_IMAGES = True
@@ -26,91 +27,6 @@ class PromptPolypDataset(Dataset):
     def __len__(self):
         return len(self.image_paths)
 
-    def uniform_sample_points(self, mask: np.ndarray, num_points: int = 1):
-        """
-        mask (np.ndarray): ground truth mask to sample points prompt from
-        num_points (int): number of points to sample
-        """
-        # If the mask is not yet normalized
-        norm_mask = mask
-        if (max(mask.flatten()) > 1):
-            norm_mask = mask / 255
-        # Extract points of the mask
-        width_non0, height_non0 = np.where(norm_mask == 1)
-        # Randomly take a point
-        rand_widths, rand_heights = [], []
-        for i in range(num_points):
-            index = np.random.choice(width_non0.shape[0], 1)
-            rand_width, rand_height = width_non0[index], height_non0[index]
-            rand_widths.append(rand_width)
-            rand_heights.append(rand_height)
-        rand_widths, rand_heights = np.array(rand_widths), np.array(rand_heights)
-
-        return rand_heights, rand_widths # Y-coord, X-coord
-
-    def sample_center_point(self, mask: np.ndarray, num_points: int = 1):
-        # If the mask is not yet normalized
-        norm_mask = mask
-        if (max(mask.flatten()) > 1):
-            norm_mask = mask / 255
-
-        flat_mask = norm_mask.flatten()
-        split = np.unique(np.sort(flat_mask), return_index=True)[1]
-        points = []
-        for idx in np.split(flat_mask.argsort(), split)[2:][:num_points]:
-            points.append(np.array(np.unravel_index(idx, mask.shape)).mean(axis=1))
-        points = np.asarray(points, dtype=np.int_) # (Width, Height)
-        # Turn to (Height, Width)
-        points = np.asarray([point[::-1] for point in points])
-        return points
-
-    def sample_box(self, mask: np.ndarray):
-        if isinstance(mask, torch.Tensor):
-            mask = mask.numpy()
-        boxes = []
-
-        mask = self._mask_to_border(mask)
-        lbl = label(mask)
-        props = regionprops(lbl)
-
-        for prop in props:
-            x1 = prop.bbox[1]
-            y1 = prop.bbox[0]
-
-            x2 = prop.bbox[3]
-            y2 = prop.bbox[2]
-
-            boxes.append(np.asarray([x1, y1, x2, y2]))
-
-        boxes = np.asarray(boxes)
-        
-        return boxes.astype(np.int32)
-
-    def _mask_to_border(self, mask: np.ndarray):
-        h, w = mask.shape[:2]
-        border = np.zeros((h, w))
-
-        contours = find_contours(mask, 128)
-        for contour in contours:
-            for c in contour:
-                x = int(c[0])
-                y = int(c[1])
-                border[x, y] = 255
-
-        return border
-
-    def _filter_box(self, boxes: np.ndarray):
-        """
-        Filter out box that does not meet the standard
-        """
-        new_boxes = []
-        for box in boxes:
-            w = box[2] - box[0]
-            h = box[3] - box[1]
-            if (w * h) > 200: # smaller than 200 pixel square
-                new_boxes.append(box)
-        return np.asarray(new_boxes)
-
     def rgb_loader(self, path):
         with open(path, 'rb') as f:
             img = Image.open(f).resize((self.image_size, self.image_size), Image.BILINEAR)
@@ -133,8 +49,8 @@ class PromptPolypDataset(Dataset):
         point_labels = []
 
         # Extract Boxes
-        boxes = self.sample_box(mask)
-        boxes = self._filter_box(boxes)
+        boxes = sample_box(mask)
+        boxes = filter_box(boxes)
 
         # Extract Points and Masks wrt box
         num_box = boxes.shape[0]
@@ -148,10 +64,10 @@ class PromptPolypDataset(Dataset):
             _mask = np.zeros(mask.shape, dtype=np.uint8)
             _mask[box[1]: box[3], box[0]: box[2]] = region
             if not self.use_center_points:
-                rand_height, rand_width = self.uniform_sample_points(_mask, num_points=self.num_points)
+                rand_height, rand_width = uniform_sample_points(_mask, num_points=self.num_points)
                 point_prompt = np.hstack([rand_height, rand_width])
             else:
-                point_prompt = self.sample_center_point(_mask, num_points=self.num_points)
+                point_prompt = sample_center_point(_mask, num_points=self.num_points)
             point_label = np.ones((self.num_points,))
             point_prompts.append(point_prompt)
             point_labels.append(point_label)
@@ -163,7 +79,7 @@ class PromptPolypDataset(Dataset):
         if self.use_box_prompt:
             box_prompts = boxes
         else:
-            box_prompts = np.asarray([[0] * 4])
+            box_prompts = np.zeros(boxes.shape)
 
         # To Tensor
         image = ToTensor()(image)
@@ -246,6 +162,97 @@ def create_dataloader(image_paths: list,
                             collate_fn=collate_fn)
 
     return dataset, dataloader
+
+
+def sample_box(mask: Union[np.ndarray, torch.Tensor]):
+    if isinstance(mask, torch.Tensor):
+        mask = mask.detach().cpu().numpy()
+    boxes = []
+
+    mask = _mask_to_border(mask)
+    lbl = label(mask)
+    props = regionprops(lbl)
+
+    for prop in props:
+        x1 = prop.bbox[1]
+        y1 = prop.bbox[0]
+
+        x2 = prop.bbox[3]
+        y2 = prop.bbox[2]
+
+        boxes.append(np.asarray([x1, y1, x2, y2]))
+
+    boxes = np.asarray(boxes)
+
+    return boxes.astype(np.int32)
+
+
+def _mask_to_border(mask: np.ndarray):
+    h, w = mask.shape[:2]
+    border = np.zeros((h, w))
+
+    contours = find_contours(mask, 128)
+    for contour in contours:
+        for c in contour:
+            x = int(c[0])
+            y = int(c[1])
+            border[x, y] = 255
+
+    return border
+
+
+def filter_box(boxes: np.ndarray):
+    """
+    Filter out box that does not meet the standard
+    """
+    new_boxes = []
+    for box in boxes:
+        w = box[2] - box[0]
+        h = box[3] - box[1]
+        if (w * h) > 200:  # smaller than 200 pixel square
+            new_boxes.append(box)
+    return np.asarray(new_boxes)
+
+
+def uniform_sample_points(mask: np.ndarray, num_points: int = 1):
+    """
+    mask (np.ndarray): ground truth mask to sample points prompt from
+    num_points (int): number of points to sample
+    """
+    # If the mask is not yet normalized
+    norm_mask = mask
+    if (max(mask.flatten()) > 1):
+        norm_mask = mask / 255
+    # Extract points of the mask
+    width_non0, height_non0 = np.where(norm_mask == 1)
+    # Randomly take a point
+    rand_widths, rand_heights = [], []
+    if width_non0.shape[0] > 0: # if we have point in the mask
+        for i in range(num_points):
+            index = np.random.choice(width_non0.shape[0], 1)
+            rand_width, rand_height = width_non0[index], height_non0[index]
+            rand_widths.append(rand_width)
+            rand_heights.append(rand_height)
+        rand_widths, rand_heights = np.array(rand_widths), np.array(rand_heights)
+
+    return rand_heights, rand_widths # Y-coord, X-coord
+
+
+def sample_center_point(mask: np.ndarray, num_points: int = 1):
+    # If the mask is not yet normalized
+    norm_mask = mask
+    if (max(mask.flatten()) > 1):
+        norm_mask = mask / 255
+
+    flat_mask = norm_mask.flatten()
+    split = np.unique(np.sort(flat_mask), return_index=True)[1]
+    points = []
+    for idx in np.split(flat_mask.argsort(), split)[2:][:num_points]:
+        points.append(np.array(np.unravel_index(idx, mask.shape)).mean(axis=1))
+    points = np.asarray(points, dtype=np.int_) # (Width, Height)
+    # Turn to (Height, Width)
+    points = np.asarray([point[::-1] for point in points])
+    return points
 
 
 class UnNormalize(object):

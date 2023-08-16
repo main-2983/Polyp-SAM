@@ -11,6 +11,8 @@ class PolypSAM(nn.Module):
     """
     A wrapper to replace the normal SAM with its own forward function
     """
+    mask_threshold: float = 0.0
+    image_format: str = "RGB"
     def __init__(self,
                  image_encoder: ImageEncoderViT,
                  mask_decoder: MaskDecoder,
@@ -119,7 +121,7 @@ class IterativePolypSAM(PolypSAM):
 
     def forward(self,
                 input: Dict[str, Any],
-                multimask_output: bool = False):
+                multimask_output: bool = True):
         """
         This forward function does not accept batch input
         """
