@@ -214,28 +214,65 @@ def filter_box(boxes: np.ndarray):
     return np.asarray(new_boxes)
 
 
-def uniform_sample_points(mask: np.ndarray, num_points: int = 1):
+def uniform_sample_points(mask: Union[torch.Tensor, np.ndarray], num_points: int = 1):
     """
-    mask (np.ndarray): ground truth mask to sample points prompt from
+    mask (torch Tensor or numpy array): ground truth mask to sample points prompt from
     num_points (int): number of points to sample
     """
-    # If the mask is not yet normalized
-    norm_mask = mask
-    if (max(mask.flatten()) > 1):
-        norm_mask = mask / 255
-    # Extract points of the mask
-    width_non0, height_non0 = np.where(norm_mask == 1)
-    # Randomly take a point
-    rand_widths, rand_heights = [], []
-    if width_non0.shape[0] > 0: # if we have point in the mask
-        for i in range(num_points):
-            index = np.random.choice(width_non0.shape[0], 1)
-            rand_width, rand_height = width_non0[index], height_non0[index]
-            rand_widths.append(rand_width)
-            rand_heights.append(rand_height)
-        rand_widths, rand_heights = np.array(rand_widths), np.array(rand_heights)
+    def _uniform_sample_points_numpy(mask: np.ndarray, num_points: int = 1):
+        """
+        mask (np.ndarray): ground truth mask to sample points prompt from
+        num_points (int): number of points to sample
+        """
+        # If the mask is not yet normalized
+        norm_mask = mask
+        if (max(mask.flatten()) > 1):
+            norm_mask = mask / 255
+        # Extract points of the mask
+        width_non0, height_non0 = np.where(norm_mask == 1)
+        # Randomly take a point
+        rand_widths, rand_heights = [], []
+        if width_non0.shape[0] > 0:  # if we have point in the mask
+            for i in range(num_points):
+                index = np.random.choice(width_non0.shape[0], 1)
+                rand_width, rand_height = width_non0[index], height_non0[index]
+                rand_widths.append(rand_width)
+                rand_heights.append(rand_height)
+            rand_widths, rand_heights = np.array(rand_widths), np.array(rand_heights)
 
-    return rand_heights, rand_widths # Y-coord, X-coord
+        return rand_heights, rand_widths  # Y-coord, X-coord
+
+    def _uniform_sample_points_torch(mask: torch.Tensor, num_points: int = 1):
+        """
+        mask (torch.Tensor): ground truth mask to sample points prompt from
+        num_points (int): number of points to sample
+        """
+        # If the mask is not yet normalized
+        norm_mask = mask
+        if mask.max() > 1:
+            norm_mask = mask / 255.0
+
+        # Extract points of the mask
+        height_non0, width_non0 = torch.where(norm_mask == 1)
+
+        rand_heights, rand_widths = [], []
+        if width_non0.shape[0] > 0:  # if we have points in the mask
+            for i in range(num_points):
+                index = torch.randint(width_non0.shape[0], (1,))
+                rand_height, rand_width = height_non0[index], width_non0[index]
+                rand_heights.append(rand_height)
+                rand_widths.append(rand_width)
+            rand_heights, rand_widths = torch.stack(rand_heights), torch.stack(rand_widths)
+        else:
+            rand_heights, rand_widths = torch.tensor(rand_heights), torch.tensor(rand_widths)
+
+        return rand_heights, rand_widths  # Y-coord, X-coord
+
+    if isinstance(mask, torch.Tensor):
+        rand_heights, rand_widths = _uniform_sample_points_torch(mask, num_points)
+    else:
+        rand_heights, rand_widths = _uniform_sample_points_numpy(mask, num_points)
+    return rand_heights, rand_widths
 
 
 def sample_center_point(mask: np.ndarray, num_points: int = 1):

@@ -178,13 +178,11 @@ def main():
                         # 0: On true positive and true negative pixel
                         # 1: On false negative pixel (predict none but has mask)
                         error_mask = single_gt_mask - single_upscale_mask  # (1024, 1024)
-                        # Step 3: convert to numpy
-                        error_mask = error_mask.cpu().numpy()
                         # Step 4: sample points
                         # Step 4.1: Separate the error mask into 2 part: The false positive and the false negative ones
-                        false_positive_mask = np.where(error_mask == -1, error_mask, 0)
+                        false_positive_mask = torch.where(error_mask == -1, error_mask, 0)
                         false_positive_mask = -false_positive_mask
-                        false_negative_mask = np.where(error_mask == 1, error_mask, 0)
+                        false_negative_mask = torch.where(error_mask == 1, error_mask, 0)
                         # Step 4.2: Choose a mask to sample from
                         if (np.random.rand() >= 0.5):  # sample from false negative mask
                             mask_to_sample = false_negative_mask
@@ -195,7 +193,7 @@ def main():
                         # Step 4.3: RANDOMLY Sample point from mask
                         height_point_prompt, width_point_prompt = uniform_sample_points(mask_to_sample,
                                                                                         num_points=1)
-                        _point_prompt = np.hstack([height_point_prompt, width_point_prompt])  # (1, 2)
+                        _point_prompt = torch.hstack([height_point_prompt, width_point_prompt])  # (1, 2)
                         if _point_prompt.shape[0] <= 0: # can't sample any points
                             # Resample with different mask
                             if rand == 1:
@@ -206,15 +204,15 @@ def main():
                                 rand = 1
                             height_point_prompt, width_point_prompt = uniform_sample_points(mask_to_sample,
                                                                                             num_points=1)
-                            _point_prompt = np.hstack([height_point_prompt, width_point_prompt])  # (1, 2)
+                            _point_prompt = torch.hstack([height_point_prompt, width_point_prompt])  # (1, 2)
                             if _point_prompt.shape[0] <= 0: # If still no points -> 100% correct mask
                                 break # Exit the Loop early
-                        _point_prompt = np.expand_dims(_point_prompt, axis=0)  # (1, 1, 2)
+                        _point_prompt = _point_prompt.unsqueeze(0)  # (1, 1, 2)
                         if rand == 1:  # If sampled from false negative, insert label 1
-                            _point_label = np.ones((1,))
+                            _point_label = torch.ones((1,))
                         else:
-                            _point_label = np.zeros((1,))
-                        _point_label = np.expand_dims(_point_label, axis=0)  # (1, 1)
+                            _point_label = torch.zeros((1,))
+                        _point_label = _point_label.unsqueeze(0)  # (1, 1)
 
                         new_point_prompts = torch.as_tensor(_point_prompt, device=device, dtype=torch.float)
                         new_point_labels = torch.as_tensor(_point_label, device=device, dtype=torch.int)
