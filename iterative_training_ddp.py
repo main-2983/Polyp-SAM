@@ -1,4 +1,5 @@
 import os
+import time
 import datetime
 import logging
 logging.basicConfig(level=logging.INFO)
@@ -56,8 +57,8 @@ def main():
 
     # Save
     date = datetime.date.today().strftime("%Y-%m-%d")
-    time = datetime.datetime.now().strftime("%H%M%S")
-    time_str = date + "_" + time
+    _time = datetime.datetime.now().strftime("%H%M%S")
+    time_str = date + "_" + _time
     save_folder = f"{SAVE_PATH}/{time_str}"
     os.makedirs(f"{save_folder}/ckpts", exist_ok=True)
 
@@ -104,6 +105,9 @@ def main():
     device = model.device
 
     # Training loop
+
+    start_time = time.time()
+
     for epoch in range(MAX_EPOCHS):
         epoch_losses = []
 
@@ -142,11 +146,8 @@ def main():
 
                     # Select the mask with highest IoU for each object
                     max_idx = torch.argmax(iou_predictions, dim=1)
-                    selected_masks = low_res_masks[0:1, max_idx[0]:max_idx[0] + 1, ...]  # (num_objects, 1, 256, 256)
-                    for i in range(1, low_res_masks.shape[0]):
-                        selected_masks = torch.concatenate([selected_masks,
-                                                            low_res_masks[i:i + 1, max_idx[i]:max_idx[i] + 1, ...]],
-                                                           dim=0)
+                    _selected_masks = low_res_masks[torch.arange(low_res_masks.shape[0]), max_idx] # (num_objects, 256, 256)
+                    selected_masks = _selected_masks.unsqueeze(1)  # (num_objects, 1, 256, 256)
 
                     # Calculate loss with the selected_masks
                     upscaled_masks = model.module.postprocess_masks(
@@ -156,7 +157,7 @@ def main():
                     accelerator.backward(loss)
                     round_loss += loss.item()
                     # TODO: check on this after, is this correct?
-                    selected_masks = selected_masks.detach() # Detach from the computation grad of next round
+                    # selected_masks = selected_masks.detach() # Detach from the computation grad of next round
 
                     # Find the error region mask between selected_masks and ground truth, then sample points
                     with torch.no_grad():
@@ -237,6 +238,9 @@ def main():
         # Saving
         if epoch >= EPOCH_TO_SAVE and epoch % SAVE_FREQUENCY == 0:
             torch.save(sam.state_dict(), f"{save_folder}/ckpts/{epoch}.pt")
+
+    end_time = time.time()
+    logging.info(f"Training time: {(end_time - start_time)/3600:.2f}")
 
 
 if __name__ == '__main__':

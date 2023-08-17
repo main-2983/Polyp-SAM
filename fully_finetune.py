@@ -1,4 +1,5 @@
 import os
+import time
 import datetime
 import logging
 logging.basicConfig(level=logging.INFO)
@@ -39,6 +40,7 @@ def main():
     MASK_PATH = "/home/nguyen.mai/Workplace/sun-polyp/Dataset/TrainDataset/mask/*"
     NUM_WORKERS = 0
     USE_BOX_PROMPT = True
+    USE_CENTER_POINT = True
 
     MAX_EPOCHS = 200
     LR = 4e-6
@@ -51,8 +53,8 @@ def main():
 
     # Save
     date = datetime.date.today().strftime("%Y-%m-%d")
-    time = datetime.datetime.now().strftime("%H%M%S")
-    time_str = date + "_" + time
+    _time = datetime.datetime.now().strftime("%H%M%S")
+    time_str = date + "_" + _time
     save_folder = f"{SAVE_PATH}/{time_str}"
     os.makedirs(f"{save_folder}/ckpts", exist_ok=True)
 
@@ -72,7 +74,8 @@ def main():
         glob(MASK_PATH),
         batch_size=BATCH_SIZE,
         num_workers=NUM_WORKERS,
-        use_box_prompt=USE_BOX_PROMPT
+        use_box_prompt=USE_BOX_PROMPT,
+        use_center_points=USE_CENTER_POINT
     )
     # Loss
     loss_fn = CombinedLoss([
@@ -93,6 +96,8 @@ def main():
     model, optimizer, train_loader, scheduler = accelerator.prepare(
         model, optimizer, train_loader, scheduler
     )
+
+    start_time = time.time()
 
     # Training loop
     for epoch in range(MAX_EPOCHS):
@@ -139,7 +144,11 @@ def main():
 
         # Saving
         if epoch >= EPOCH_TO_SAVE and epoch % SAVE_FREQUENCY == 0:
-            torch.save(sam.state_dict(), f"{SAVE_PATH}/ckpts/{epoch}.pt")
+            torch.save(sam.state_dict(), f"{save_folder}/ckpts/{epoch}.pt")
+
+    end_time = time.time()
+    logging.info(f"Training time: {(end_time - start_time) / 3600:.2f}")
+
 
 if __name__ == '__main__':
     main()

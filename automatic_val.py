@@ -65,6 +65,7 @@ def val(checkpoint,
                 plt.imshow(final_mask)
                 plt.axis("off")
                 plt.savefig(f"{store_path}/autoSAM/{dataset_name}/{name}.png")
+                plt.close()
         mean_iou, mean_dice, _, _ = get_scores(gts, prs)
         all_dices.append(mean_dice)
         table.append([dataset_name, mean_iou, mean_dice])
