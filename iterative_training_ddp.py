@@ -146,8 +146,11 @@ def main():
 
                     # Select the mask with highest IoU for each object
                     max_idx = torch.argmax(iou_predictions, dim=1)
-                    _selected_masks = low_res_masks[torch.arange(low_res_masks.shape[0]), max_idx] # (num_objects, 256, 256)
-                    selected_masks = _selected_masks.unsqueeze(1)  # (num_objects, 1, 256, 256)
+                    selected_masks = low_res_masks[0:1, max_idx[0]:max_idx[0] + 1, ...]  # (num_objects, 1, 256, 256)
+                    for i in range(1, low_res_masks.shape[0]):
+                        selected_masks = torch.concatenate([selected_masks,
+                                                            low_res_masks[i:i + 1, max_idx[i]:max_idx[i] + 1, ...]],
+                                                           dim=0)
 
                     # Calculate loss with the selected_masks
                     upscaled_masks = model.module.postprocess_masks(
@@ -156,8 +159,8 @@ def main():
                     loss = loss_fn(upscaled_masks, gt_mask[:, None, :, :])  # expand channel dim
                     accelerator.backward(loss)
                     round_loss += loss.item()
-                    # TODO: check on this after, is this correct?
-                    # selected_masks = selected_masks.detach() # Detach from the computation grad of next round
+
+                    selected_masks = selected_masks.detach() # Detach from the computation grad of next round
 
                     # Find the error region mask between selected_masks and ground truth, then sample points
                     with torch.no_grad():
