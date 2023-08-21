@@ -100,7 +100,7 @@ def main():
     start_time = time.time()
 
     # Training loop
-    for epoch in range(MAX_EPOCHS):
+    for epoch in range(1, MAX_EPOCHS):
         epoch_losses = []
 
         # One epoch
