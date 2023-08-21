@@ -12,11 +12,11 @@ from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
 from src.metrics import weighted_score, get_scores
 
 
-def val(checkpoint,
-        model_size,
-        test_folder,
-        store: bool = False,
-        store_path: str = None):
+def auto_test(checkpoint,
+              model_size,
+              test_folder,
+              store: bool = False,
+              store_path: str = None):
     sam = sam_model_registry[model_size](checkpoint)
     sam = sam.to("cuda")
     autoSAM = SamAutomaticMaskGenerator(sam)
@@ -27,7 +27,7 @@ def val(checkpoint,
     all_dices = []
     metric_weights = [0.1253, 0.0777, 0.4762, 0.0752, 0.2456]
 
-    if (store):
+    if store:
         for dataset_name in dataset_names:
             os.makedirs(f"{store_path}/autoSAM/{dataset_name}", exist_ok=True)
 
@@ -77,6 +77,11 @@ def val(checkpoint,
     table.append(['wDice', 0, wdice])
     print(tabulate(table, headers=headers, tablefmt="fancy_grid"))
 
+    # Write result to file
+    if store:
+        with open(f"{store_path}/autoSAM/results.txt", 'w') as f:
+            f.write(tabulate(table, headers=headers, tablefmt="fancy_grid"))
+
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -92,8 +97,8 @@ def parse_args():
 
 if __name__ == '__main__':
     args = parse_args()
-    val(args.ckpt,
-        args.size,
-        args.path,
-        args.store,
-        args.store_path)
+    auto_test(args.ckpt,
+              args.size,
+              args.path,
+              args.store,
+              args.store_path)
