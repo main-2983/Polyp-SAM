@@ -23,8 +23,8 @@ def auto_test(checkpoint,
 
     dataset_names = ['Kvasir', 'CVC-ClinicDB', 'CVC-ColonDB', 'CVC-300', 'ETIS-LaribPolypDB']
     table = []
-    headers = ['Dataset', 'IoU', 'Dice']
-    all_dices = []
+    headers = ['Dataset', 'Dice', 'Recall', 'Precision']
+    all_dices, all_precisions, all_recalls = [], [], []
     metric_weights = [0.1253, 0.0777, 0.4762, 0.0752, 0.2456]
 
     if store:
@@ -66,16 +66,27 @@ def auto_test(checkpoint,
                 plt.axis("off")
                 plt.savefig(f"{store_path}/autoSAM/{dataset_name}/{name}.png")
                 plt.close()
-        mean_iou, mean_dice, _, _ = get_scores(gts, prs)
-        all_dices.append(mean_dice)
-        table.append([dataset_name, mean_iou, mean_dice])
 
-    wdice = weighted_score(
-        scores=all_dices,
-        weights=metric_weights
-    )
-    table.append(['wDice', 0, wdice])
-    print(tabulate(table, headers=headers, tablefmt="fancy_grid"))
+        _, mean_dice, mean_precision, mean_recall = get_scores(gts, prs)
+        all_dices.append(mean_dice)
+        all_recalls.append(mean_recall)
+        all_precisions.append(mean_precision)
+        table.append([dataset_name, mean_dice, mean_recall, mean_precision])
+
+        wdice = weighted_score(
+            scores=all_dices,
+            weights=metric_weights
+        )
+        wrecall = weighted_score(
+            scores=all_recalls,
+            weights=metric_weights
+        )
+        wprecision = weighted_score(
+            scores=all_precisions,
+            weights=metric_weights
+        )
+        table.append(['Weighted', wdice, wrecall, wprecision])
+        print(tabulate(table, headers=headers, tablefmt="fancy_grid"))
 
     # Write result to file
     if store:
