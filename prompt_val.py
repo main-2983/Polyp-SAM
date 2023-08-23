@@ -23,7 +23,7 @@ def test_prompt(checkpoint,
     sam = sam_model_registry[model_size](checkpoint)
     sam.pixel_mean = torch.Tensor([0.485, 0.456, 0.406]).view(-1, 1, 1)
     sam.pixel_std = torch.Tensor([0.229, 0.224, 0.225]).view(-1, 1, 1)
-    sam = sam.to("cuda")
+    # sam = sam.to("cuda")
     predictor = SamPredictor(sam)
 
     dataset_names = ['Kvasir', 'CVC-ClinicDB', 'CVC-ColonDB', 'CVC-300', 'ETIS-LaribPolypDB']
@@ -53,18 +53,18 @@ def test_prompt(checkpoint,
             name = os.path.basename(image_path)
             name = os.path.splitext(name)[0]
             sample = test_dataset[i]
-            images = sample[0]  # (B, C, H, W)
-            masks = sample[1]  # (B, C, H, W)
-            point_prompts = sample[2]  # (B, num_boxes, points_per_box, 2)
-            point_labels = sample[3]  # (B, num_boxes, points_per_box)
-            box_prompts = sample[4]  # (B, num_boxes, 4)
+            images = sample[0]  # (C, H, W)
+            masks = sample[1]  # (C, H, W)
+            point_prompts = sample[2]  # (num_boxes, points_per_box, 2)
+            point_labels = sample[3]  # (num_boxes, points_per_box)
+            box_prompts = sample[4]  # (num_boxes, 4)
             image_size = (test_dataset.image_size, test_dataset.image_size)
 
-            predictor.set_torch_image(images, image_size)
+            predictor.set_torch_image(images[None], image_size)
 
             pred_masks, scores, logits = predictor.predict_torch(
-                point_coords=point_prompts[0],
-                point_labels=point_labels[0],
+                point_coords=point_prompts,
+                point_labels=point_labels,
                 boxes=box_prompts if use_box else None,
                 multimask_output=False
             )
@@ -73,7 +73,7 @@ def test_prompt(checkpoint,
             final_mask = pred_masks[0]
             for i in range(1, len(pred_masks)):
                 final_mask = np.logical_or(final_mask, pred_masks[i])
-            gt_mask = masks[0, 0].cpu().numpy()
+            gt_mask = masks[0].cpu().numpy()
 
             gts.append(gt_mask)
             prs.append(final_mask)
