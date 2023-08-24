@@ -23,7 +23,7 @@ def test_prompt(checkpoint,
     sam = sam_model_registry[model_size](checkpoint)
     sam.pixel_mean = torch.Tensor([0.485, 0.456, 0.406]).view(-1, 1, 1)
     sam.pixel_std = torch.Tensor([0.229, 0.224, 0.225]).view(-1, 1, 1)
-    # sam = sam.to("cuda")
+    sam = sam.to("cuda")
     predictor = SamPredictor(sam)
 
     dataset_names = ['Kvasir', 'CVC-ClinicDB', 'CVC-ColonDB', 'CVC-300', 'ETIS-LaribPolypDB']
