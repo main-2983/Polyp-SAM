@@ -86,7 +86,7 @@ def main():
 
     start_time = time.time()
 
-    for epoch in range(config.MAX_EPOCHS):
+    for epoch in range(1, config.MAX_EPOCHS + 1):
         epoch_losses = []
 
         # One epoch
