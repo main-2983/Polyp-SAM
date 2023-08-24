@@ -25,6 +25,7 @@ def test_prompt(checkpoint,
     sam.pixel_std = torch.Tensor([0.229, 0.224, 0.225]).view(-1, 1, 1)
     sam = sam.to("cuda")
     predictor = SamPredictor(sam)
+    device = sam.device
 
     dataset_names = ['Kvasir', 'CVC-ClinicDB', 'CVC-ColonDB', 'CVC-300', 'ETIS-LaribPolypDB']
     table = []
@@ -32,8 +33,9 @@ def test_prompt(checkpoint,
     all_dices, all_precisions, all_recalls = [], [], []
     metric_weights = [0.1253, 0.0777, 0.4762, 0.0752, 0.2456]
 
-    if (store):
-        os.makedirs(store_path, exist_ok=True)
+    if store:
+        for dataset_name in dataset_names:
+            os.makedirs(f"{store_path}/prompt/{dataset_name}", exist_ok=True)
 
     for dataset_name in dataset_names:
         data_path = f'{test_folder}/{dataset_name}'
@@ -53,11 +55,11 @@ def test_prompt(checkpoint,
             name = os.path.basename(image_path)
             name = os.path.splitext(name)[0]
             sample = test_dataset[i]
-            images = sample[0]  # (C, H, W)
+            images = sample[0].to(device) # (C, H, W)
             masks = sample[1]  # (C, H, W)
-            point_prompts = sample[2]  # (num_boxes, points_per_box, 2)
-            point_labels = sample[3]  # (num_boxes, points_per_box)
-            box_prompts = sample[4]  # (num_boxes, 4)
+            point_prompts = sample[2].to(device)  # (num_boxes, points_per_box, 2)
+            point_labels = sample[3].to(device)  # (num_boxes, points_per_box)
+            box_prompts = sample[4].to(device)  # (num_boxes, 4)
             image_size = (test_dataset.image_size, test_dataset.image_size)
 
             predictor.set_torch_image(images[None], image_size)
@@ -82,7 +84,7 @@ def test_prompt(checkpoint,
                 plt.figure(figsize=(10, 10))
                 plt.imshow(final_mask)
                 plt.axis("off")
-                plt.savefig(f"{store_path}/autoSAM/{dataset_name}/{name}.png")
+                plt.savefig(f"{store_path}/prompt/{dataset_name}/{name}.png")
                 plt.close()
 
         _, mean_dice, mean_precision, mean_recall = get_scores(gts, prs)
@@ -108,7 +110,7 @@ def test_prompt(checkpoint,
 
     # Write result to file
     if store:
-        with open(f"{store_path}/autoSAM/results.txt", 'w') as f:
+        with open(f"{store_path}/prompt/results.txt", 'w') as f:
             f.write(tabulate(table, headers=headers, tablefmt="fancy_grid"))
 
 
