@@ -1,12 +1,15 @@
+from glob import glob
+
 import torch
 from segmentation_models_pytorch.losses import DiceLoss
 from torch.nn import BCEWithLogitsLoss
 
 from segment_anything.modeling import Sam
 from segment_anything import sam_model_registry
-from src.model.iterative_polypSAM import IterativePolypSAM
+from src.models.iterative_polypSAM import IterativePolypSAM
 from src.scheduler import LinearWarmupCosineAnnealingLR
 from src.losses import CombinedLoss
+from src.dataset import PromptPolypDataset
 
 
 class Config:
@@ -16,22 +19,29 @@ class Config:
         self.MODEL_SIZE = "vit_b"
 
         # Dataset and Dataloader
-        self.IMG_PATH = "/home/nguyen.mai/Workplace/sun-polyp/Dataset/TrainDataset/image/*"
-        self.MASK_PATH = "/home/nguyen.mai/Workplace/sun-polyp/Dataset/TrainDataset/mask/*"
-        self.NUM_WORKERS = 0
-        self.USE_BOX_PROMPT = False
-        self.USE_CENTER_POINT = True
+        IMG_PATH = "/home/nguyen.mai/Workplace/sun-polyp/Dataset/TrainDataset/image/*"
+        MASK_PATH = "/home/nguyen.mai/Workplace/sun-polyp/Dataset/TrainDataset/mask/*"
+        USE_BOX_PROMPT = False
+        USE_CENTER_POINT = True
+        self.dataset = PromptPolypDataset(
+            glob(IMG_PATH),
+            glob(MASK_PATH),
+            use_box_prompt=USE_BOX_PROMPT,
+            use_center_points=USE_CENTER_POINT
+        )
+
         self.BATCH_SIZE = 2
+        self.NUM_WORKERS = 0
 
         # Training
         self.MAX_EPOCHS = 200
         self.ROUND_PER_EPOCH = 6
 
         # Model
-        self.sam: Sam = sam_model_registry[self.MODEL_SIZE](self.PRETRAINED_PATH)
-        self.model = IterativePolypSAM(self.sam.image_encoder,
-                                       self.sam.mask_decoder,
-                                       self.sam.prompt_encoder)
+        sam: Sam = sam_model_registry[self.MODEL_SIZE](self.PRETRAINED_PATH)
+        self.model = IterativePolypSAM(sam.image_encoder,
+                                       sam.mask_decoder,
+                                       sam.prompt_encoder)
 
         # Optimizer
         self.OPTIMIZER = torch.optim.AdamW

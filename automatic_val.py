@@ -2,6 +2,8 @@ import os
 import argparse
 import numpy as np
 from glob import glob
+
+import torch
 from PIL import Image
 from tabulate import tabulate
 from tqdm import tqdm
@@ -12,6 +14,7 @@ from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
 from src.metrics import weighted_score, get_scores
 
 
+@torch.no_grad()
 def auto_test(checkpoint,
               model_size,
               test_folder,
@@ -73,20 +76,20 @@ def auto_test(checkpoint,
         all_precisions.append(mean_precision)
         table.append([dataset_name, mean_dice, mean_recall, mean_precision])
 
-        wdice = weighted_score(
-            scores=all_dices,
-            weights=metric_weights
-        )
-        wrecall = weighted_score(
-            scores=all_recalls,
-            weights=metric_weights
-        )
-        wprecision = weighted_score(
-            scores=all_precisions,
-            weights=metric_weights
-        )
-        table.append(['Weighted', wdice, wrecall, wprecision])
-        print(tabulate(table, headers=headers, tablefmt="fancy_grid"))
+    wdice = weighted_score(
+        scores=all_dices,
+        weights=metric_weights
+    )
+    wrecall = weighted_score(
+        scores=all_recalls,
+        weights=metric_weights
+    )
+    wprecision = weighted_score(
+        scores=all_precisions,
+        weights=metric_weights
+    )
+    table.append(['Weighted', wdice, wrecall, wprecision])
+    print(tabulate(table, headers=headers, tablefmt="fancy_grid"))
 
     # Write result to file
     if store:

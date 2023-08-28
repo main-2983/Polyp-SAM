@@ -14,6 +14,7 @@ from src.dataset import PromptPolypDataset
 from src.metrics import get_scores, weighted_score
 
 
+@torch.no_grad()
 def test_prompt(checkpoint,
                 model_size,
                 test_folder,
@@ -34,8 +35,9 @@ def test_prompt(checkpoint,
     metric_weights = [0.1253, 0.0777, 0.4762, 0.0752, 0.2456]
 
     if store:
+        folder = "point_box" if use_box else "point"
         for dataset_name in dataset_names:
-            os.makedirs(f"{store_path}/prompt/{dataset_name}", exist_ok=True)
+            os.makedirs(f"{store_path}/{folder}/{dataset_name}", exist_ok=True)
 
     for dataset_name in dataset_names:
         data_path = f'{test_folder}/{dataset_name}'
@@ -84,7 +86,7 @@ def test_prompt(checkpoint,
                 plt.figure(figsize=(10, 10))
                 plt.imshow(final_mask)
                 plt.axis("off")
-                plt.savefig(f"{store_path}/prompt/{dataset_name}/{name}.png")
+                plt.savefig(f"{store_path}/{folder}/{dataset_name}/{name}.png")
                 plt.close()
 
         _, mean_dice, mean_precision, mean_recall = get_scores(gts, prs)
@@ -110,7 +112,7 @@ def test_prompt(checkpoint,
 
     # Write result to file
     if store:
-        with open(f"{store_path}/prompt/results.txt", 'w') as f:
+        with open(f"{store_path}/{folder}/results.txt", 'w') as f:
             f.write(tabulate(table, headers=headers, tablefmt="fancy_grid"))
 
 

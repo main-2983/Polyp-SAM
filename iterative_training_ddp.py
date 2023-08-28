@@ -2,23 +2,19 @@ import argparse
 import os
 import time
 import datetime
-import logging
 import importlib
 import shutil
-logging.basicConfig(level=logging.INFO)
-from glob import glob
 from tqdm import tqdm
 import numpy as np
 
 from accelerate import Accelerator
+from accelerate.logging import get_logger
+logger = get_logger(__name__, log_level="INFO")
 from accelerate.utils import DistributedDataParallelKwargs
 
 import torch
 
-from segment_anything import sam_model_registry
-from segment_anything.modeling import Sam
 from src.dataset import create_dataloader, uniform_sample_points
-from src.models import IterativePolypSAM
 
 try:
     import wandb
@@ -54,30 +50,24 @@ def main():
     accelerator = Accelerator(kwargs_handlers=[ddp_kwargs])
 
     # Model
-    sam: Sam = sam_model_registry[config.MODEL_SIZE](config.PRETRAINED_PATH)
-    model = IterativePolypSAM(sam.image_encoder,
-                              sam.mask_decoder,
-                              sam.prompt_encoder)
+    model = config.model
 
     # Dataloader
     train_dataset, train_loader = create_dataloader(
-        glob(config.IMG_PATH),
-        glob(config.MASK_PATH),
+        config.dataset,
         batch_size=config.BATCH_SIZE,
-        num_workers=config.NUM_WORKERS,
-        use_box_prompt=config.USE_BOX_PROMPT,
-        use_center_points=config.USE_CENTER_POINT
+        num_workers=config.NUM_WORKERS
     )
 
     # Loss
     loss_fn = config.LOSS_FN
 
     # Optimizer
-    optimizer = config.OPTIMIZER(sam.parameters(), **config.OPTIMIZER_KWARGS)
+    optimizer = config.OPTIMIZER(model.parameters(), **config.OPTIMIZER_KWARGS)
     scheduler = config.SCHEDULER(optimizer, **config.SCHEDULER_KWARGS)
 
-    model, optimizer, train_loader, scheduler = accelerator.prepare(
-        model, optimizer, train_loader, scheduler
+    model, optimizer, train_loader = accelerator.prepare(
+        model, optimizer, train_loader
     )
 
     device = model.device
@@ -90,7 +80,7 @@ def main():
         epoch_losses = []
 
         # One epoch
-        for batch in tqdm(train_loader, desc=f"epoch: {epoch}"):
+        for batch in tqdm(train_loader, desc=f"epoch: {epoch}", disable=not accelerator.is_main_process):
             images = batch[0]  # (B, C, H, W)
             masks = batch[1]  # (B, C, H, W)
             point_prompts = batch[2]  # (B, num_boxes, points_per_box, 2)
@@ -214,14 +204,20 @@ def main():
         # After epoch
         scheduler.step()
         epoch_loss = sum(epoch_losses) / len(epoch_losses)
-        logging.info(f"Epoch: {epoch} \t Loss: {epoch_loss}")
+        logger.info(f"Epoch: {epoch} \t Loss: {epoch_loss}", main_process_only=True)
+        if accelerator.is_main_process:
+            with open(f"{save_folder}/exp.log", 'a') as f:
+                f.write(f"Epoch: {epoch} \t Loss: {epoch_loss} \n")
 
         # Saving
-        if epoch >= config.EPOCH_TO_SAVE and epoch % config.SAVE_FREQUENCY == 0:
-            torch.save(sam.state_dict(), f"{save_folder}/ckpts/{epoch}.pt")
+        if accelerator.is_main_process:
+            if epoch >= config.EPOCH_TO_SAVE and epoch % config.SAVE_FREQUENCY == 0:
+                accelerator.wait_for_everyone()
+                model_state_dict = accelerator.get_state_dict(model)
+                accelerator.save(model_state_dict, f"{save_folder}/ckpts/{epoch}.pt")
 
     end_time = time.time()
-    logging.info(f"Training time: {(end_time - start_time)/3600:.2f}")
+    logger.info(f"Training time: {(end_time - start_time)/3600:.2f}", main_process_only=True)
 
 
 if __name__ == '__main__':

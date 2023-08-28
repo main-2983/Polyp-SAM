@@ -145,16 +145,10 @@ def collate_fn(batch):
     return images, masks, point_prompts, point_labels, box_prompts
 
 
-def create_dataloader(image_paths: list,
-                      mask_paths: list,
-                      use_box_prompt: bool = True,
-                      use_center_points: bool = False,
-                      image_size: int = 1024,
-                      num_points: int = 1,
+def create_dataloader(dataset,
                       batch_size: int = 16,
                       num_workers: int = 4,
                       shuffle: bool = True):
-    dataset = PromptPolypDataset(image_paths, mask_paths, image_size, num_points, use_box_prompt, use_center_points)
     dataloader = DataLoader(dataset,
                             batch_size=batch_size,
                             shuffle=shuffle,
@@ -162,6 +156,48 @@ def create_dataloader(image_paths: list,
                             collate_fn=collate_fn)
 
     return dataset, dataloader
+
+
+class CountPolypDataset(Dataset):
+    def __init__(self,
+                 image_paths: list,
+                 mask_paths: list,
+                 image_size: int = 1024):
+        self.image_paths = image_paths
+        self.mask_paths = mask_paths
+        self.image_size = image_size
+
+    def __len__(self):
+        return len(self.image_paths)
+
+    def rgb_loader(self, path):
+        with open(path, 'rb') as f:
+            img = Image.open(f).resize((self.image_size, self.image_size), Image.BILINEAR)
+            img = np.array(img.convert('RGB'))
+            return img
+
+    def binary_loader(self, path):
+        with open(path, 'rb') as f:
+            img = Image.open(f).resize((self.image_size, self.image_size), Image.NEAREST)
+            img = np.array(img.convert('L'))
+            return img
+
+    def __getitem__(self, index):
+        image = self.rgb_loader(self.image_paths[index])
+        mask = self.binary_loader(self.mask_paths[index])
+
+        # Extract Boxes
+        boxes = sample_box(mask)
+        boxes = filter_box(boxes)
+
+        # Extract Points and Masks wrt box
+        num_box = boxes.shape[0]
+
+        # To Tensor
+        image = ToTensor()(image)
+        num_box = torch.as_tensor(num_box, dtype=torch.float)
+
+        return image, num_box
 
 
 def sample_box(mask: Union[np.ndarray, torch.Tensor]):
