@@ -2,6 +2,9 @@ import torch
 from segmentation_models_pytorch.losses import DiceLoss
 from torch.nn import BCEWithLogitsLoss
 
+from segment_anything.modeling import Sam
+from segment_anything import sam_model_registry
+from src.model.iterative_polypSAM import IterativePolypSAM
 from src.scheduler import LinearWarmupCosineAnnealingLR
 from src.losses import CombinedLoss
 
@@ -23,6 +26,12 @@ class Config:
         # Training
         self.MAX_EPOCHS = 200
         self.ROUND_PER_EPOCH = 6
+
+        # Model
+        self.sam: Sam = sam_model_registry[self.MODEL_SIZE](self.PRETRAINED_PATH)
+        self.model = IterativePolypSAM(self.sam.image_encoder,
+                                       self.sam.mask_decoder,
+                                       self.sam.prompt_encoder)
 
         # Optimizer
         self.OPTIMIZER = torch.optim.AdamW
