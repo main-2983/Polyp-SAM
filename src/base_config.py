@@ -21,12 +21,12 @@ class Config:
         # Dataset and Dataloader
         IMG_PATH = "/home/nguyen.mai/Workplace/sun-polyp/Dataset/TrainDataset/image/*"
         MASK_PATH = "/home/nguyen.mai/Workplace/sun-polyp/Dataset/TrainDataset/mask/*"
-        USE_BOX_PROMPT = False
+        self.USE_BOX_PROMPT = False
         USE_CENTER_POINT = True
         self.dataset = PromptPolypDataset(
             glob(IMG_PATH),
             glob(MASK_PATH),
-            use_box_prompt=USE_BOX_PROMPT,
+            use_box_prompt=self.USE_BOX_PROMPT,
             use_center_points=USE_CENTER_POINT
         )
 
