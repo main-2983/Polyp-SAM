@@ -123,11 +123,10 @@ def main():
                 f.write(f"Epoch: {epoch} \t Loss: {epoch_loss} \n")
 
         # Saving
-        if accelerator.is_main_process:
-            if epoch >= config.EPOCH_TO_SAVE and epoch % config.SAVE_FREQUENCY == 0:
-                accelerator.wait_for_everyone()
-                model_state_dict = accelerator.get_state_dict(model)
-                accelerator.save(model_state_dict, f"{save_folder}/ckpts/{epoch}.pt")
+        if epoch >= config.EPOCH_TO_SAVE and epoch % config.SAVE_FREQUENCY == 0:
+            accelerator.wait_for_everyone()
+            model_state_dict = accelerator.get_state_dict(model)
+            accelerator.save(model_state_dict, f"{save_folder}/ckpts/{epoch}.pt")
 
     end_time = time.time()
     logger.info(f"Training time: {(end_time - start_time) / 3600:.2f}", main_process_only=True)

@@ -7,9 +7,12 @@ import shutil
 from tqdm import tqdm
 import numpy as np
 
+import logging
+logging.basicConfig(level=logging.INFO)
+
 from accelerate import Accelerator
 from accelerate.logging import get_logger
-logger = get_logger(__name__, log_level="INFO")
+logger = get_logger(__name__)
 from accelerate.utils import DistributedDataParallelKwargs
 
 import torch
@@ -210,14 +213,16 @@ def main():
                 f.write(f"Epoch: {epoch} \t Loss: {epoch_loss} \n")
 
         # Saving
-        if accelerator.is_main_process:
-            if epoch >= config.EPOCH_TO_SAVE and epoch % config.SAVE_FREQUENCY == 0:
-                accelerator.wait_for_everyone()
-                model_state_dict = accelerator.get_state_dict(model)
-                accelerator.save(model_state_dict, f"{save_folder}/ckpts/{epoch}.pt")
+        if epoch >= config.EPOCH_TO_SAVE and epoch % config.SAVE_FREQUENCY == 0:
+            accelerator.wait_for_everyone()
+            model_state_dict = accelerator.get_state_dict(model)
+            accelerator.save(model_state_dict, f"{save_folder}/ckpts/{epoch}.pt")
 
     end_time = time.time()
     logger.info(f"Training time: {(end_time - start_time)/3600:.2f}", main_process_only=True)
+    if accelerator.is_main_process:
+        with open(f"{save_folder}/exp.log", 'a') as f:
+            f.write(f"Training time: {(end_time - start_time)/3600:.2f}")
 
 
 if __name__ == '__main__':
