@@ -18,8 +18,9 @@ class PolypCounter(nn.Module):
         self.register_buffer("pixel_std", torch.Tensor(pixel_std).view(-1, 1, 1), False)
         self.image_encoder = image_encoder
         self.pool = nn.AdaptiveAvgPool2d(1)
-        self.fc = nn.Linear(256, 128)
-        self.pred = nn.Linear(128, 1)
+        self.fc = nn.Conv2d(256, 128, 1)
+        self.relu = nn.ReLU()
+        self.pred = nn.Conv2d(128, 1, 1)
 
         if freeze is not None:
             for module in freeze:
@@ -31,6 +32,7 @@ class PolypCounter(nn.Module):
         enc_out = self.image_encoder(x)
         out = self.pool(enc_out)
         out = self.fc(out)
+        out = self.relu(out)
         out = self.pred(out)
 
         return out
