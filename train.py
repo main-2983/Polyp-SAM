@@ -14,7 +14,7 @@ from accelerate.utils import DistributedDataParallelKwargs
 
 import torch
 
-from src.dataset import create_dataloader
+from src.datasets import create_dataloader
 
 try:
     import wandb

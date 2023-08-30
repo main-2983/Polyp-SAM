@@ -17,7 +17,7 @@ from accelerate.utils import DistributedDataParallelKwargs
 
 import torch
 
-from src.dataset import create_dataloader, uniform_sample_points
+from src.datasets import create_dataloader, uniform_sample_points
 
 try:
     import wandb

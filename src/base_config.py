@@ -9,7 +9,7 @@ from segment_anything import sam_model_registry
 from src.models.iterative_polypSAM import IterativePolypSAM
 from src.scheduler import LinearWarmupCosineAnnealingLR
 from src.losses import CombinedLoss
-from src.dataset import PromptPolypDataset
+from src.datasets import PromptPolypDataset
 
 
 class Config:

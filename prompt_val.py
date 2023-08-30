@@ -10,7 +10,7 @@ import torch
 
 from segment_anything import sam_model_registry, SamPredictor
 
-from src.dataset import PromptPolypDataset
+from src.datasets import PromptPolypDataset
 from src.metrics import get_scores, weighted_score
 
 
