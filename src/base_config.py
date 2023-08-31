@@ -44,6 +44,7 @@ class Config:
                                        sam.prompt_encoder)
 
         # Optimizer
+        self.ACCUMULATE_STEPS = 1
         self.OPTIMIZER = torch.optim.AdamW
         self.OPTIMIZER_KWARGS = dict(
             lr=1e-4,

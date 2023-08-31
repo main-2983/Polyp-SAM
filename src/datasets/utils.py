@@ -62,9 +62,9 @@ def collate_fn(batch):
     for task_prompt in task_prompts:
         num_to_pad = max_num_box - task_prompt.shape[0]
         for i in range(num_to_pad):
-            task_prompt = torch.concatenate([task_prompt, task_prompt], dim=0)
+            task_prompt = torch.concatenate([task_prompt, task_prompt[0:1]], dim=0)
         new_task_prompts.append(task_prompt)
-    task_prompts = torch.stack(new_task_prompts)
+    task_prompts = torch.stack(new_task_prompts, dim=0)
 
     return images, masks, point_prompts, point_labels, box_prompts, task_prompts
 
