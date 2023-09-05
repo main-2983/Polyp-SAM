@@ -9,6 +9,8 @@ from segment_anything.modeling.common import LayerNorm2d
 
 
 class GraftingSAM(nn.Module):
+    mask_threshold: float = 0.0
+    image_format: str = "RGB"
     def __init__(self,
                  image_encoder: nn.Module,
                  prompt_encoder: PromptEncoder,
