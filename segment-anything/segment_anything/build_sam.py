@@ -57,13 +57,14 @@ def _build_sam(
     encoder_depth,
     encoder_num_heads,
     encoder_global_attn_indexes,
+    image_embedding_size=None,
     image_size=1024,
     checkpoint=None,
 ):
     prompt_embed_dim = 256
     image_size = image_size
     vit_patch_size = 16
-    image_embedding_size = image_size // vit_patch_size
+    image_embedding_size = image_embedding_size if image_embedding_size is not None else image_size // vit_patch_size
     sam = Sam(
         image_encoder=ImageEncoderViT(
             depth=encoder_depth,
