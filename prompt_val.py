@@ -1,5 +1,6 @@
 import os
 import argparse
+import importlib
 from glob import glob
 from tqdm import tqdm
 from tabulate import tabulate
@@ -16,17 +17,19 @@ from src.metrics import get_scores, weighted_score
 
 @torch.no_grad()
 def test_prompt(checkpoint,
-                model_size,
+                config,
                 test_folder,
                 use_box: bool = False,
                 store: bool = False,
                 store_path: str = None):
-    sam = sam_model_registry[model_size](checkpoint)
-    sam.pixel_mean = torch.Tensor([0.485, 0.456, 0.406]).view(-1, 1, 1)
-    sam.pixel_std = torch.Tensor([0.229, 0.224, 0.225]).view(-1, 1, 1)
-    sam = sam.to("cuda")
-    predictor = SamPredictor(sam)
-    device = sam.device
+    module = importlib.import_module(config)
+    config = module.Config()
+    model: torch.nn.Module = config.model
+    state_dict = torch.load(checkpoint, map_location="cpu")
+    model.load_state_dict(state_dict)
+    model = model.to("cuda")
+    predictor = SamPredictor(model)
+    device = model.device
 
     dataset_names = ['Kvasir', 'CVC-ClinicDB', 'CVC-ColonDB', 'CVC-300', 'ETIS-LaribPolypDB']
     table = []
@@ -47,7 +50,7 @@ def test_prompt(checkpoint,
         test_masks.sort()
 
         test_dataset = PromptPolypDataset(
-            test_images, test_masks, 1024, 1, use_box, True
+            test_images, test_masks, image_size=1024, num_points=1, use_box_prompt=use_box, use_center_points=True
         )
 
         gts = []
@@ -119,7 +122,7 @@ def test_prompt(checkpoint,
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('ckpt', type=str, help="Model checkpoint")
-    parser.add_argument('--size', type=str, default="vit_b")
+    parser.add_argument('config', type=str, help="Model config")
     parser.add_argument('--path', type=str, help="Path to test folder")
     parser.add_argument('--use-box', action="store_true")
     parser.add_argument('--store', action="store_true")
@@ -132,7 +135,7 @@ def parse_args():
 if __name__ == '__main__':
     args = parse_args()
     test_prompt(args.ckpt,
-                args.size,
+                args.config,
                 args.path,
                 args.use_box,
                 args.store,
