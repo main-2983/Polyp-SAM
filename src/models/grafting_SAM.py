@@ -12,6 +12,7 @@ class GraftingSAM(nn.Module):
     mask_threshold: float = 0.0
     image_format: str = "RGB"
     def __init__(self,
+                 image_size,
                  image_encoder: nn.Module,
                  prompt_encoder: PromptEncoder,
                  mask_decoder: MaskDecoder,
@@ -30,6 +31,7 @@ class GraftingSAM(nn.Module):
         self.mask_decoder = mask_decoder
         self.prompt_encoder = prompt_encoder
         self.out_index = img_enc_out_index
+        self.image_encoder.__setattr__("img_size", image_size)
 
         self.neck = nn.Sequential(
             nn.Conv2d(
