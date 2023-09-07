@@ -2,7 +2,7 @@ from glob import glob
 
 import torch
 from segmentation_models_pytorch.losses import DiceLoss
-from torch.nn import BCEWithLogitsLoss
+from torch.nn import BCEWithLogitsLoss, MSELoss
 
 from segment_anything.modeling import Sam
 from segment_anything import sam_model_registry
@@ -15,8 +15,14 @@ from src.datasets import PromptPolypDataset
 class Config:
     def __init__(self):
         # Model init
-        self.PRETRAINED_PATH = "ckpts/sam_vit_b_01ec64.pth"
-        self.MODEL_SIZE = "vit_b"
+        PRETRAINED_PATH = "ckpts/sam_vit_b_01ec64.pth"
+        MODEL_SIZE = "vit_b"
+
+        # Model
+        sam: Sam = sam_model_registry[MODEL_SIZE](PRETRAINED_PATH)
+        self.model = IterativePolypSAM(sam.image_encoder,
+                                       sam.mask_decoder,
+                                       sam.prompt_encoder)
 
         # Dataset and Dataloader
         IMG_PATH = "/home/nguyen.mai/Workplace/sun-polyp/Dataset/TrainDataset/image/*"
@@ -36,12 +42,6 @@ class Config:
         # Training
         self.MAX_EPOCHS = 200
         self.ROUND_PER_EPOCH = 6
-
-        # Model
-        sam: Sam = sam_model_registry[self.MODEL_SIZE](self.PRETRAINED_PATH)
-        self.model = IterativePolypSAM(sam.image_encoder,
-                                       sam.mask_decoder,
-                                       sam.prompt_encoder)
 
         # Optimizer
         self.ACCUMULATE_STEPS = 1
@@ -64,6 +64,7 @@ class Config:
         self.LOSS_FN = CombinedLoss(
             [loss1, loss2]
         )
+        self.IOU_LOSS = MSELoss()
 
         # Sampling
         self.RATE = 0.5
