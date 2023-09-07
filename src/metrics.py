@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 
 
 epsilon = 1e-7
@@ -25,6 +26,11 @@ def dice_np(y_true, y_pred):
 def iou_np(y_true, y_pred):
     intersection = np.sum(np.round(np.clip(y_true * y_pred, 0, 1)))
     union = np.sum(y_true) + np.sum(y_pred) - intersection
+    return intersection / (union + epsilon)
+
+def iou_torch(y_true: torch.Tensor, y_pred: torch.Tensor):
+    intersection = (y_pred & y_true).float().sum((0, 1)) # Will be zero if Truth=0 or Prediction=0
+    union = (y_pred | y_true).float().sum((0, 1)) # Will be zero if both are 0
     return intersection / (union + epsilon)
 
 

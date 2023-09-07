@@ -8,6 +8,26 @@ from segment_anything.modeling import PromptEncoder, MaskDecoder
 from segment_anything.modeling.common import LayerNorm2d
 
 
+class ImageEncoderImpl(nn.Module):
+    def __init__(self,
+                 base_module: nn.Module,
+                 neck: nn.Module,
+                 image_size: int,
+                 out_index: int):
+        super(ImageEncoderImpl, self).__init__()
+        self.base_module = base_module
+        self.neck = neck
+        self.img_size = image_size
+        self.out_index = out_index
+
+    def forward(self, x):
+        outs = self.base_module(x)
+        out = outs[self.out_index]
+        out = self.neck(out)
+
+        return out
+
+
 class GraftingSAM(nn.Module):
     mask_threshold: float = 0.0
     image_format: str = "RGB"
@@ -27,13 +47,9 @@ class GraftingSAM(nn.Module):
         self.register_buffer("pixel_mean", torch.Tensor(pixel_mean).view(-1, 1, 1), False)
         self.register_buffer("pixel_std", torch.Tensor(pixel_std).view(-1, 1, 1), False)
 
-        self.image_encoder = image_encoder
         self.mask_decoder = mask_decoder
         self.prompt_encoder = prompt_encoder
-        self.out_index = img_enc_out_index
-        self.image_encoder.__setattr__("img_size", image_size)
-
-        self.neck = nn.Sequential(
+        neck = nn.Sequential(
             nn.Conv2d(
                 img_enc_dim,
                 out_chans,
@@ -49,6 +65,12 @@ class GraftingSAM(nn.Module):
                 bias=False,
             ),
             LayerNorm2d(out_chans),
+        )
+        self.image_encoder = ImageEncoderImpl(
+            image_encoder,
+            neck,
+            image_size,
+            img_enc_out_index
         )
 
         if freeze is not None:
@@ -67,9 +89,7 @@ class GraftingSAM(nn.Module):
                 multimask_output: bool = False):
         image = input.get("image")
 
-        image_embeddings = self.image_encoder(image[None])
-        image_embedding = image_embeddings[self.out_index]
-        image_embedding = self.neck(image_embedding)
+        image_embedding = self.image_encoder(image[None])
 
         points = input.get("point_prompt")
         sparse_embeddings, dense_embeddings = self.prompt_encoder(

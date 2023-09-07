@@ -34,7 +34,7 @@ def test_prompt(checkpoint,
 
     dataset_names = ['Kvasir', 'CVC-ClinicDB', 'CVC-ColonDB', 'CVC-300', 'ETIS-LaribPolypDB']
     table = []
-    headers = ['Dataset', 'Dice', 'IoU', 'Recall', 'Precision']
+    headers = ['Dataset', 'IoU', 'Dice', 'Recall', 'Precision']
     all_ious, all_dices, all_precisions, all_recalls = [], [], [], []
     metric_weights = [0.1253, 0.0777, 0.4762, 0.0752, 0.2456]
 

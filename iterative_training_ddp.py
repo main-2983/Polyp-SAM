@@ -18,6 +18,7 @@ from accelerate.utils import DistributedDataParallelKwargs
 import torch
 
 from src.datasets import create_dataloader, uniform_sample_points
+from src.metrics import iou_torch
 
 try:
     import wandb
@@ -67,6 +68,7 @@ def main():
 
     # Loss
     loss_fn = config.LOSS_FN
+    iou_loss = config.IOU_LOSS
 
     # Optimizer
     optimizer = config.OPTIMIZER(model.parameters(), **config.OPTIMIZER_KWARGS)
@@ -110,7 +112,7 @@ def main():
                     for round in range(config.ROUND_PER_EPOCH):
                         model_input = {
                             "image": image,
-                            "point_prompt": point,
+                            "point_prompt": point if round < config.ROUND_PER_EPOCH - 1 else None,
                             "box_prompt": box_prompt if config.USE_BOX_PROMPT else None,
                             "mask_input": mask_input,
                             "image_size": image_size
@@ -122,17 +124,30 @@ def main():
                         # Select the mask with highest IoU for each object
                         max_idx = torch.argmax(iou_predictions, dim=1)
                         selected_masks = low_res_masks[0:1, max_idx[0]:max_idx[0] + 1, ...]  # (num_objects, 1, 256, 256)
+                        selected_ious = iou_predictions[0:1, max_idx[0]:max_idx[0] + 1] # (num_objects, 1)
                         for i in range(1, low_res_masks.shape[0]):
                             selected_masks = torch.concatenate([selected_masks,
                                                                 low_res_masks[i:i + 1, max_idx[i]:max_idx[i] + 1, ...]],
                                                                dim=0)
+                            selected_ious = torch.concatenate([selected_ious,
+                                                               iou_predictions[i:i+1, max_idx[i]:max_idx[i]+1]])
 
                         # Calculate loss with the selected_masks
                         upscaled_masks = model.module.postprocess_masks(
                             selected_masks, image.shape[-2:], image_size
                         )
+                        # Calculate ious with the selected_masks
+                        gt_ious = []
+                        for i in range(upscaled_masks.shape[0]):
+                            # transform logit mask to binary mask
+                            m_pred = upscaled_masks[i].clone().detach() > model.module.mask_threshold # (1, 256, 256)
+                            gt_ious.append(iou_torch(gt_mask[0], m_pred[0]))
+                        gt_ious = torch.stack(gt_ious, dim=0)
+                        gt_ious = torch.unsqueeze(gt_ious, dim=1) # (num_objects, 1)
+
                         with accelerator.autocast():
                             loss = loss_fn(upscaled_masks, gt_mask[:, None, :, :])  # expand channel dim
+                            loss += iou_loss(selected_ious, gt_ious)
                         accelerator.backward(loss)
                         round_loss += loss.item()
 
