@@ -27,14 +27,15 @@ def test_prompt(checkpoint,
     model: torch.nn.Module = config.model
     state_dict = torch.load(checkpoint, map_location="cpu")
     model.load_state_dict(state_dict)
+    model.eval()
     model = model.to("cuda")
     predictor = SamPredictor(model)
     device = model.device
 
     dataset_names = ['Kvasir', 'CVC-ClinicDB', 'CVC-ColonDB', 'CVC-300', 'ETIS-LaribPolypDB']
     table = []
-    headers = ['Dataset', 'Dice', 'Recall', 'Precision']
-    all_dices, all_precisions, all_recalls = [], [], []
+    headers = ['Dataset', 'Dice', 'IoU', 'Recall', 'Precision']
+    all_ious, all_dices, all_precisions, all_recalls = [], [], [], []
     metric_weights = [0.1253, 0.0777, 0.4762, 0.0752, 0.2456]
 
     if store:
@@ -92,12 +93,17 @@ def test_prompt(checkpoint,
                 plt.savefig(f"{store_path}/{folder}/{dataset_name}/{name}.png")
                 plt.close()
 
-        _, mean_dice, mean_precision, mean_recall = get_scores(gts, prs)
+        mean_iou, mean_dice, mean_precision, mean_recall = get_scores(gts, prs)
+        all_ious.append(mean_iou)
         all_dices.append(mean_dice)
         all_recalls.append(mean_recall)
         all_precisions.append(mean_precision)
-        table.append([dataset_name, mean_dice, mean_recall, mean_precision])
+        table.append([dataset_name, mean_iou, mean_dice, mean_recall, mean_precision])
 
+    wiou = weighted_score(
+        scores=all_ious,
+        weights=metric_weights
+    )
     wdice = weighted_score(
         scores=all_dices,
         weights=metric_weights
@@ -110,7 +116,7 @@ def test_prompt(checkpoint,
         scores=all_precisions,
         weights=metric_weights
     )
-    table.append(['Weighted', wdice, wrecall, wprecision])
+    table.append(['Weighted', wiou, wdice, wrecall, wprecision])
     print(tabulate(table, headers=headers, tablefmt="fancy_grid"))
 
     # Write result to file
