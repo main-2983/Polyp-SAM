@@ -141,7 +141,7 @@ def main():
                         for i in range(upscaled_masks.shape[0]):
                             # transform logit mask to binary mask
                             m_pred = upscaled_masks[i].clone().detach() > model.module.mask_threshold # (1, 256, 256)
-                            gt_ious.append(iou_torch(gt_mask[0], m_pred[0]))
+                            gt_ious.append(iou_torch(gt_mask[i] > 0.5, m_pred[0]))
                         gt_ious = torch.stack(gt_ious, dim=0)
                         gt_ious = torch.unsqueeze(gt_ious, dim=1) # (num_objects, 1)
 
