@@ -5,6 +5,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import torch
+import torch.nn.functional as F
 
 from functools import partial
 
@@ -101,9 +102,54 @@ def _build_sam(
         pixel_mean=[123.675, 116.28, 103.53],
         pixel_std=[58.395, 57.12, 57.375],
     )
-    sam.eval()
     if checkpoint is not None:
         with open(checkpoint, "rb") as f:
             state_dict = torch.load(f, map_location="cpu")
-        sam.load_state_dict(state_dict["model"])
+        if image_size != 1024:
+            print("Interpolating Position Embedding!")
+            state_dict = interpolate_state_dict(
+                sam, state_dict, image_embedding_size, encoder_global_attn_indexes
+            )
+        sam.load_state_dict(state_dict)
     return sam
+
+
+def interpolate_state_dict(sam: Sam,
+                           pretrained_state_dict,
+                           token_size,
+                           global_attention_indexes: list):
+    state_dict = sam.state_dict()
+    pos_embed = pretrained_state_dict["image_encoder.pos_embed"]
+
+    if pos_embed.shape[1] != token_size:
+        # interpolate the pre-trained position embedding
+        pos_embed = pos_embed.permute(0, 3, 1, 2)  # [b, c, h, w]
+        pos_embed = F.interpolate(pos_embed, (token_size, token_size), mode='bilinear', align_corners=False)
+        pos_embed = pos_embed.permute(0, 2, 3, 1)  # [b, h, w, c]
+        pretrained_state_dict["image_encoder.pos_embed"] = pos_embed # update pretrained SAM with interpolated pos_embed
+        # interpolate the rel_pos of global attention (local attention has fixed rel_pos shape with window size)
+        rel_pos_keys = [k for k in state_dict.keys() if "rel_pos" in k]
+        # get all global attention keys
+        global_rel_pos_keys = []
+        for i in range(len(global_attention_indexes)):
+            block_i = str(global_attention_indexes[i])
+            check_string = f"blocks.{block_i}"
+            for k in rel_pos_keys:
+                if check_string in k:
+                    print(k)
+                    global_rel_pos_keys.append(k)
+
+        for k in global_rel_pos_keys:
+            target_h, target_w = state_dict[k].shape
+            rel_pos_params = pretrained_state_dict[k]
+            h, w = rel_pos_params.shape
+            rel_pos_params = rel_pos_params.unsqueeze(0).unsqueeze(0)
+            if h != target_h or w != target_w:
+                rel_pos_params = F.interpolate(rel_pos_params, (target_h, target_w), mode='bilinear', align_corners=False)
+
+            pretrained_state_dict[k] = rel_pos_params[0, 0, ...]
+
+    # update init SAM with pretrained
+    state_dict.update(pretrained_state_dict)
+
+    return state_dict
