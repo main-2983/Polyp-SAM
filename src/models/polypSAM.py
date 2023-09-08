@@ -34,6 +34,10 @@ class PolypSAM(nn.Module):
                         for param in m.parameters():
                             param.requires_grad = False
 
+    @property
+    def device(self) -> Any:
+        return self.pixel_mean.device
+
     def forward(self,
                 input: Dict[str, Any],
                 multimask_output: bool = False):

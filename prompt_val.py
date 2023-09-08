@@ -51,7 +51,7 @@ def test_prompt(checkpoint,
         test_masks.sort()
 
         test_dataset = PromptPolypDataset(
-            test_images, test_masks, image_size=1024, num_points=1, use_box_prompt=use_box, use_center_points=True
+            test_images, test_masks, image_size=config.IMAGE_SIZE, num_points=1, use_box_prompt=use_box, use_center_points=True
         )
 
         gts = []

@@ -29,9 +29,11 @@ class Config:
         MASK_PATH = "/home/nguyen.mai/Workplace/sun-polyp/Dataset/TrainDataset/mask/*"
         self.USE_BOX_PROMPT = False
         USE_CENTER_POINT = True
+        self.IMAGE_SIZE = 1024
         self.dataset = PromptPolypDataset(
             glob(IMG_PATH),
             glob(MASK_PATH),
+            image_size=self.IMAGE_SIZE,
             use_box_prompt=self.USE_BOX_PROMPT,
             use_center_points=USE_CENTER_POINT
         )
