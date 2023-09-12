@@ -13,6 +13,7 @@ class PromptBaseDataset(Dataset):
     def __init__(self,
                  image_paths: list,
                  mask_paths: list,
+                 task_number: int = 0,
                  image_size: int = 1024,
                  num_points: int = 1,
                  use_box_prompt: bool = True,
@@ -20,6 +21,7 @@ class PromptBaseDataset(Dataset):
                  transform = None):
         self.image_paths = image_paths
         self.mask_paths = mask_paths
+        self.task_number = task_number
         self.image_size = image_size
         self.num_points = num_points
         self.use_box_prompt = use_box_prompt
@@ -94,8 +96,9 @@ class PromptBaseDataset(Dataset):
         # To Tensor
         image = ToTensor()(image)
         mask = ToTensor()(masks) # (B, num_box, H, W)
+        task_prompts = torch.as_tensor([self.task_number], dtype=torch.int)
         point_prompts = torch.as_tensor(point_prompts, dtype=torch.float) # (num_box, points_per_box, 2)
         point_labels = torch.as_tensor(point_labels, dtype=torch.int) # (num_box, points_per_box)
         box_prompts = torch.as_tensor(box_prompts, dtype=torch.float) # (num_box, 4)
 
-        return image, mask, point_prompts, point_labels, box_prompts
+        return image, mask, point_prompts, point_labels, box_prompts, task_prompts
