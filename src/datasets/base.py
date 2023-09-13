@@ -1,9 +1,11 @@
+from typing import Iterable
+
 import numpy as np
 from PIL import Image, ImageFile
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 import torch
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, ConcatDataset
 from torchvision.transforms import ToTensor
 
 from .utils import sample_box, filter_box, uniform_sample_points, sample_center_point
@@ -53,7 +55,7 @@ class PromptBaseDataset(Dataset):
 
         # Extract Boxes
         boxes = sample_box(mask)
-        boxes = filter_box(boxes)
+        boxes = filter_box(boxes, self.box_threshold)
 
         if self.transform is not None:
             transformed = self.transform(image=image,
@@ -102,3 +104,10 @@ class PromptBaseDataset(Dataset):
         box_prompts = torch.as_tensor(box_prompts, dtype=torch.float) # (num_box, 4)
 
         return image, mask, point_prompts, point_labels, box_prompts, task_prompts
+
+
+class ConcatPromptDataset(ConcatDataset):
+    def __init__(self, datasets: Iterable[PromptBaseDataset]):
+        super(ConcatPromptDataset, self).__init__(datasets)
+
+        self.image_size = self.datasets[0].image_size

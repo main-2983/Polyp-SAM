@@ -113,7 +113,7 @@ def main():
                         model_input = {
                             "image": image,
                             "point_prompt": point if round < config.ROUND_PER_EPOCH - 1 else None,
-                            "box_prompt": box_prompt if config.USE_BOX_PROMPT else None,
+                            "box_prompt": box_prompt if config.USE_BOX_PROMPT and round == 0 else None,
                             "mask_input": mask_input,
                             "image_size": image_size
                         }

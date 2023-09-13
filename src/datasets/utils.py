@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, Callable
 import numpy as np
 
 import torch
@@ -72,7 +72,8 @@ def collate_fn(batch):
 def create_dataloader(dataset,
                       batch_size: int = 16,
                       num_workers: int = 4,
-                      shuffle: bool = True):
+                      shuffle: bool = True,
+                      collate_fn: Callable = collate_fn):
     dataloader = DataLoader(dataset,
                             batch_size=batch_size,
                             shuffle=shuffle,
