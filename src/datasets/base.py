@@ -28,7 +28,7 @@ class PromptBaseDataset(Dataset):
         self.num_points = num_points
         self.use_box_prompt = use_box_prompt
         self.use_center_points = use_center_points
-        self.box_threshold = (image_size // 100) ** 2
+        self.box_threshold = image_size // 100
         self.transform = transform
 
     def __len__(self):
@@ -86,10 +86,14 @@ class PromptBaseDataset(Dataset):
             point_prompts.append(point_prompt)
             point_labels.append(point_label)
             masks.append(_mask)
-
-        point_prompts = np.asarray(point_prompts)
-        point_labels = np.asarray(point_labels)
-        masks = np.asarray(masks).transpose((1, 2, 0))
+        try:
+            point_prompts = np.asarray(point_prompts)
+            point_labels = np.asarray(point_labels)
+            masks = np.asarray(masks).transpose((1, 2, 0))
+        except ValueError:
+            point_prompts = np.asarray(point_prompts)
+            point_labels = np.asarray(point_labels)
+            masks = np.asarray(masks).transpose((1, 2, 0))
         if self.use_box_prompt:
             box_prompts = boxes
         else:

@@ -120,7 +120,7 @@ def _mask_to_border(mask: np.ndarray):
     return border
 
 
-def filter_box(boxes: np.ndarray, threshold: int = 200):
+def filter_box(boxes: np.ndarray, threshold: int = 10):
     """
     Filter out box that does not meet the standard
     """
@@ -128,7 +128,7 @@ def filter_box(boxes: np.ndarray, threshold: int = 200):
     for box in boxes:
         w = box[2] - box[0]
         h = box[3] - box[1]
-        if (w * h) > threshold:  # smaller than threshold pixel square
+        if w > threshold and h > threshold:  # smaller than threshold pixel square
             new_boxes.append(box)
     return np.asarray(new_boxes)
 
