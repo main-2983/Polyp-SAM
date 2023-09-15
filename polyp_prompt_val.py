@@ -20,6 +20,7 @@ def test_prompt(checkpoint,
                 config,
                 test_folder,
                 use_box: bool = False,
+                use_point: bool = True,
                 store: bool = False,
                 store_path: str = None):
     module = importlib.import_module(config)
@@ -38,8 +39,16 @@ def test_prompt(checkpoint,
     all_ious, all_dices, all_precisions, all_recalls = [], [], [], []
     metric_weights = [0.1253, 0.0777, 0.4762, 0.0752, 0.2456]
 
+    if use_box & use_point == 0: # if not use either point or box
+        use_point = True # -> default to single point
+
     if store:
-        folder = "point_box" if use_box else "point"
+        if use_box and use_point:
+            folder = "point_box"
+        elif use_box:
+            folder = "box"
+        elif use_point:
+            folder = "point"
         for dataset_name in dataset_names:
             os.makedirs(f"{store_path}/{folder}/{dataset_name}", exist_ok=True)
 
@@ -51,7 +60,8 @@ def test_prompt(checkpoint,
         test_masks.sort()
 
         test_dataset = PromptPolypDataset(
-            test_images, test_masks, image_size=config.IMAGE_SIZE, num_points=1, use_box_prompt=use_box, use_center_points=True
+            test_images, test_masks, image_size=config.IMAGE_SIZE,
+            num_points=1 if use_point else 0, use_box_prompt=use_box, use_center_points=True
         )
 
         gts = []
@@ -71,8 +81,8 @@ def test_prompt(checkpoint,
             predictor.set_torch_image(images[None], image_size)
 
             pred_masks, scores, logits = predictor.predict_torch(
-                point_coords=point_prompts,
-                point_labels=point_labels,
+                point_coords=point_prompts if use_point else None,
+                point_labels=point_labels if use_point else None,
                 boxes=box_prompts if use_box else None,
                 multimask_output=False
             )
@@ -99,29 +109,29 @@ def test_prompt(checkpoint,
         all_recalls.append(mean_recall)
         all_precisions.append(mean_precision)
         table.append([dataset_name, mean_iou, mean_dice, mean_recall, mean_precision])
-
-    wiou = weighted_score(
-        scores=all_ious,
-        weights=metric_weights
-    )
-    wdice = weighted_score(
-        scores=all_dices,
-        weights=metric_weights
-    )
-    wrecall = weighted_score(
-        scores=all_recalls,
-        weights=metric_weights
-    )
-    wprecision = weighted_score(
-        scores=all_precisions,
-        weights=metric_weights
-    )
-    table.append(['Weighted', wiou, wdice, wrecall, wprecision])
+    if len(dataset_names) > 1:
+        wiou = weighted_score(
+            scores=all_ious,
+            weights=metric_weights
+        )
+        wdice = weighted_score(
+            scores=all_dices,
+            weights=metric_weights
+        )
+        wrecall = weighted_score(
+            scores=all_recalls,
+            weights=metric_weights
+        )
+        wprecision = weighted_score(
+            scores=all_precisions,
+            weights=metric_weights
+        )
+        table.append(['Weighted', wiou, wdice, wrecall, wprecision])
     print(tabulate(table, headers=headers, tablefmt="fancy_grid"))
 
     # Write result to file
     if store:
-        with open(f"{store_path}/{folder}/results.txt", 'w') as f:
+        with open(f"{store_path}/{folder}/results_polyp.txt", 'w') as f:
             f.write(tabulate(table, headers=headers, tablefmt="fancy_grid"))
 
 
@@ -131,6 +141,7 @@ def parse_args():
     parser.add_argument('config', type=str, help="Model config")
     parser.add_argument('--path', type=str, help="Path to test folder")
     parser.add_argument('--use-box', action="store_true")
+    parser.add_argument('--use-point', action="store_true")
     parser.add_argument('--store', action="store_true")
     parser.add_argument('--store_path', type=str, default=None, required=False)
     args = parser.parse_args()
@@ -144,5 +155,6 @@ if __name__ == '__main__':
                 args.config,
                 args.path,
                 args.use_box,
+                args.use_point,
                 args.store,
                 args.store_path)
