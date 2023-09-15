@@ -55,9 +55,11 @@ def main():
         gradient_accumulation_steps=config.ACCUMULATE_STEPS,
         kwargs_handlers=[ddp_kwargs]
     )
+    is_distributed = accelerator.distributed_type != accelerator.distributed_type.NO
 
     # Model
     model = config.model
+    mask_threshold = model.mask_threshold
 
     # Dataloader
     train_dataset, train_loader = create_dataloader(
@@ -98,7 +100,10 @@ def main():
                 image_size = (train_dataset.image_size, train_dataset.image_size)
                 batch_size = images.shape[0]  # Batch size
 
-                input_images = torch.stack([model.module.preprocess(img) for img in images], dim=0)
+                if is_distributed:
+                    input_images = torch.stack([model.module.preprocess(img) for img in images], dim=0)
+                else:
+                    input_images = torch.stack([model.preprocess(img) for img in images], dim=0)
 
                 # Forward batch, process per-image
                 batch_loss = []
@@ -133,14 +138,19 @@ def main():
                                                                iou_predictions[i:i+1, max_idx[i]:max_idx[i]+1]])
 
                         # Calculate loss with the selected_masks
-                        upscaled_masks = model.module.postprocess_masks(
-                            selected_masks, image.shape[-2:], image_size
-                        )
+                        if is_distributed:
+                            upscaled_masks = model.module.postprocess_masks(
+                                selected_masks, image.shape[-2:], image_size
+                            )
+                        else:
+                            upscaled_masks = model.postprocess_masks(
+                                selected_masks, image.shape[-2:], image_size
+                            )
                         # Calculate ious with the selected_masks
                         gt_ious = []
                         for i in range(upscaled_masks.shape[0]):
                             # transform logit mask to binary mask
-                            m_pred = upscaled_masks[i].clone().detach() > model.module.mask_threshold # (1, 256, 256)
+                            m_pred = upscaled_masks[i].clone().detach() > mask_threshold # (1, 256, 256)
                             gt_ious.append(iou_torch(gt_mask[i] > 0.5, m_pred[0]))
                         gt_ious = torch.stack(gt_ious, dim=0)
                         gt_ious = torch.unsqueeze(gt_ious, dim=1) # (num_objects, 1)
@@ -156,7 +166,7 @@ def main():
                         # Find the error region mask between selected_masks and ground truth, then sample points
                         with torch.no_grad():
                             # Step 1: convert mask to binary
-                            upscaled_masks = upscaled_masks > model.module.mask_threshold
+                            upscaled_masks = upscaled_masks > mask_threshold
                             gt = gt_mask > 0.5  # Cuz resizing image sucks
                             # Step 2: OR all mask to reduce to C=1
                             single_upscale_mask = upscaled_masks[0, 0, ...].clone()  # (1024, 1024)

@@ -39,7 +39,7 @@ def test_prompt(checkpoint,
     all_ious, all_dices, all_precisions, all_recalls = [], [], [], []
     metric_weights = [0.1253, 0.0777, 0.4762, 0.0752, 0.2456]
 
-    if use_box & use_point == 0: # if not use either point or box
+    if (use_box or use_point) == 0: # if not use either point or box
         use_point = True # -> default to single point
 
     if store:
