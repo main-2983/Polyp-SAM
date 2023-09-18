@@ -63,8 +63,14 @@ class PolypDataset(Dataset):
         if self.embedding_paths is not None:
             embedding = torch.from_numpy(embedding).float()
 
-        return {
-            'image_embedding': embedding if self.embedding_paths is not None else None,  # (1, 256, 64, 64)
-            'image': image,  # (3, 1024, 1024)
-            'mask': mask  # (1, 1024, 1024)
-        }
+        if self.embedding_paths is not None:
+            return {
+                'image_embedding': embedding,  # (1, 256, 64, 64)
+                'image': image,  # (3, 1024, 1024)
+                'mask': mask  # (1, 1024, 1024)
+            }
+        else:
+            return {
+                'image': image,
+                'mask': mask
+            }
