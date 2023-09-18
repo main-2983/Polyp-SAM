@@ -27,6 +27,10 @@ class SelfPointPromptSAM(nn.Module):
         self.mask_decoder = mask_decoder
         self.prompt_encoder = prompt_encoder
 
+        num_points = self.point_model.num_points
+        self.register_buffer('labels', torch.zeros((1, num_points), dtype=torch.long), False)
+        self.labels[0, :num_points // 2] = 1
+
         self.register_buffer('pixel_mean', torch.tensor(pixel_mean).view(-1, 1, 1), False)
         self.register_buffer('pixel_std', torch.tensor(pixel_std).view(-1, 1, 1), False)
 
@@ -61,11 +65,7 @@ class SelfPointPromptSAM(nn.Module):
 
         points = self.point_model(image)
 
-        num_points = self.point_model.num_points
-        labels = torch.zeros((1, num_points), dtype=torch.long)
-        labels[0, :num_points // 2] = 1
-
-        point_prompt = (points, labels)
+        point_prompt = (points, self.labels)
 
         sparse_embeddings, dense_embeddings = self.prompt_encoder(
             points=point_prompt,
