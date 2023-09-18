@@ -80,7 +80,10 @@ def main():
         epoch_losses = []
         for batch in tqdm(train_loader, desc=f"epoch: {epoch}", disable=not accelerator.is_main_process):
             with accelerator.accumulate(model):
-                image_embedding = batch['image_embedding']
+                if config.EMBEDDING_PATHS:
+                    image_embedding = batch['image_embedding']
+                else:
+                    image_embedding = None
                 image = batch['image']
                 mask = batch['mask']
 
