@@ -1,0 +1,1 @@
+from .self_point_prompt import SelfPointPromptSAM
