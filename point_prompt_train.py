@@ -89,7 +89,7 @@ def main():
 
                 _input = {
                     'image_embedding': image_embedding,
-                    'image': image.unsqueeze(0),
+                    'image': image,
                     'image_size': (config.IMAGE_SIZE, config.IMAGE_SIZE)
                 }
 
