@@ -72,8 +72,6 @@ def main():
         model, optimizer, train_loader
     )
 
-    device = model.device
-
     # Training loop
 
     start_time = time.time()
@@ -98,15 +96,18 @@ def main():
 
                 accelerator.backward(loss)
 
-                optimizer.zero_grad()
                 optimizer.step()
+                optimizer.zero_grad()
 
-                epoch_losses.append(loss)
+                epoch_losses.append(loss.item())
 
         # After epoch
         scheduler.step()
         epoch_loss = sum(epoch_losses) / len(epoch_losses)
         logger.info(f"Epoch: {epoch} \t Loss: {epoch_loss}", main_process_only=True)
+        if accelerator.is_main_process:
+            with open(f"{save_folder}/exp.log", 'a') as f:
+                f.write(f"Epoch: {epoch} \t Loss: {epoch_loss} \n")
 
         # Saving
         accelerator.wait_for_everyone()
