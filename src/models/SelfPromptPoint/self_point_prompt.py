@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .point_gen_module import PointGenModule, PointGenModuleV2
+from .point_gen_module import PointGenModule, PointGenModulev2
 
 from typing import List, Tuple, Dict, Any
 
@@ -136,7 +136,7 @@ class SelfPointPromptSAM(nn.Module):
 
 class SelfPointPromptSAMv2(SelfPointPromptSAM):
     def __init__(self,
-                 point_model: PointGenModuleV2,
+                 point_model: PointGenModulev2,
                  *args,
                  **kwargs):
         super(SelfPointPromptSAMv2, self).__init__(*args, **kwargs)
