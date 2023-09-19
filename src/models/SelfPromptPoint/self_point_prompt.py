@@ -10,6 +10,8 @@ from segment_anything.modeling import MaskDecoder, ImageEncoderViT, PromptEncode
 
 
 class SelfPointPromptSAM(nn.Module):
+    mask_threshold: float = 0.0
+    image_format: str = "RGB"
     def __init__(
             self,
             point_model: PointGenModule,
