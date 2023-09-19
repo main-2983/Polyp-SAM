@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
 
+from segment_anything.modeling.common import LayerNorm2d
+
 
 class PointGenModule(nn.Module):
     def __init__(
@@ -61,3 +63,35 @@ class PointGenModule(nn.Module):
         n_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
 
         return super(PointGenModule, self).__str__() + f'\nTrainable parameters: {n_params}'
+
+
+class PointGenModulev2(nn.Module):
+    def __init__(self,
+                 image_size: int = 1024,
+                 num_points: int = 2):
+        super(PointGenModulev2, self).__init__()
+        # Input: (batch_size, 256, 64, 64)
+        # Output: (batch_size, num_points, 2)
+        self.image_size = image_size
+        self.num_points = num_points
+
+        self.conv = nn.Sequential(
+            nn.Conv2d(256, 128, kernel_size=1),
+            LayerNorm2d(128),
+            nn.Conv2d(128, 128, kernel_size=3, padding=1),
+            LayerNorm2d(128)
+        )
+
+        self.pool = nn.AdaptiveAvgPool2d(1)
+        self.fc = nn.Linear(128, self.num_points * 2)
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, x):
+        x = self.conv(x)
+        x = self.pool(x)
+        x = x.view(x.shape[0], -1)
+        x = self.fc(x)
+        x = self.sigmoid(x)
+        x = x.view(-1, self.num_points, 2)
+
+        return x * self.image_size
