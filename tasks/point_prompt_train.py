@@ -44,10 +44,8 @@ def main():
     shutil.copy(module.__file__, save_folder)
 
     # Init Accelerate
-    ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=True)
     accelerator = Accelerator(
-        gradient_accumulation_steps=config.ACCUMULATE_STEPS,
-        kwargs_handlers=[ddp_kwargs]
+        gradient_accumulation_steps=config.ACCUMULATE_STEPS
     )
 
     # Model
