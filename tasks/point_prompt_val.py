@@ -11,6 +11,10 @@ import torch
 
 from segment_anything import sam_model_registry, SamPredictor
 
+
+import sys
+package = os.path.join(os.path.dirname(sys.path[0]), "src")
+sys.path.append(os.path.dirname(package))
 from src.datasets.polyp.polyp_dataset import PolypDataset
 from src.metrics import get_scores, weighted_score
 

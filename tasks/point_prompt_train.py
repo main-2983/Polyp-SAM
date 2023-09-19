@@ -14,6 +14,9 @@ from accelerate import Accelerator
 from accelerate.logging import get_logger
 logger = get_logger(__name__)
 
+import sys
+package = os.path.join(os.path.dirname(sys.path[0]), "src")
+sys.path.append(os.path.dirname(package))
 from src.datasets import create_dataloader
 
 
