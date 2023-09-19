@@ -139,7 +139,7 @@ class SelfPointPromptSAMv2(SelfPointPromptSAM):
                  point_model: PointGenModulev2,
                  *args,
                  **kwargs):
-        super(SelfPointPromptSAMv2, self).__init__(*args, **kwargs)
+        super(SelfPointPromptSAMv2, self).__init__(point_model, *args, **kwargs)
         self.point_model = point_model
 
     def forward(self,
