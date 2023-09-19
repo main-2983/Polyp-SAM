@@ -13,7 +13,6 @@ logging.basicConfig(level=logging.INFO)
 from accelerate import Accelerator
 from accelerate.logging import get_logger
 logger = get_logger(__name__)
-from accelerate.utils import DistributedDataParallelKwargs
 
 from src.datasets import create_dataloader
 
