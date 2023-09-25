@@ -78,8 +78,8 @@ class PromptBaseDataset(Dataset):
             _mask = np.zeros(mask.shape, dtype=np.uint8)
             _mask[box[1]: box[3], box[0]: box[2]] = region
             if not self.use_center_points:
-                rand_height, rand_width = uniform_sample_points(_mask, num_points=self.num_points)
-                point_prompt = np.hstack([rand_height, rand_width])
+                rand_width, rand_height = uniform_sample_points(_mask, num_points=self.num_points)
+                point_prompt = np.hstack([rand_width, rand_height])
             else:
                 point_prompt = sample_center_point(_mask, num_points=self.num_points)
             point_label = np.ones((self.num_points,))
