@@ -196,9 +196,9 @@ def main():
                                 mask_to_sample = false_positive_mask
                                 rand = -1
                             # Step 4.3: RANDOMLY Sample point from mask
-                            height_point_prompt, width_point_prompt = uniform_sample_points(mask_to_sample,
+                            width_point_prompt, height_point_prompt = uniform_sample_points(mask_to_sample,
                                                                                             num_points=1)
-                            _point_prompt = torch.hstack([height_point_prompt, width_point_prompt])  # (1, 2)
+                            _point_prompt = torch.hstack([width_point_prompt, height_point_prompt])  # (1, 2)
                             if _point_prompt.shape[0] <= 0: # can't sample any points
                                 # Resample with different mask
                                 if rand == 1:
@@ -207,9 +207,9 @@ def main():
                                 else:
                                     mask_to_sample = false_negative_mask
                                     rand = 1
-                                height_point_prompt, width_point_prompt = uniform_sample_points(mask_to_sample,
+                                width_point_prompt, height_point_prompt = uniform_sample_points(mask_to_sample,
                                                                                                 num_points=1)
-                                _point_prompt = torch.hstack([height_point_prompt, width_point_prompt])  # (1, 2)
+                                _point_prompt = torch.hstack([width_point_prompt, height_point_prompt])  # (1, 2)
                                 if _point_prompt.shape[0] <= 0: # If still no points -> 100% correct mask
                                     break # Exit the Loop early
                             _point_prompt = _point_prompt.unsqueeze(0)  # (1, 1, 2)

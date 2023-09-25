@@ -205,8 +205,8 @@ def sample_center_point(mask: np.ndarray, num_points: int = 1):
     points = []
     for idx in np.split(flat_mask.argsort(), split)[2:][:num_points]:
         points.append(np.array(np.unravel_index(idx, mask.shape)).mean(axis=1))
-    points = np.asarray(points, dtype=np.int_) # (Width, Height)
-    # Turn to (Height, Width)
+    points = np.asarray(points, dtype=np.int_) # (Height, Width)
+    # Turn to (Width, Height)
     points = np.asarray([point[::-1] for point in points])
     return points
 
