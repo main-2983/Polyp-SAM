@@ -4,7 +4,7 @@ from typing import List
 
 from torch import nn
 from torch.optim import Adam, Optimizer
-from torch.optim.lr_scheduler import LRScheduler
+from torch.optim.lr_scheduler import _LRScheduler as LRScheduler
 
 class LinearWarmupCosineAnnealingLR(LRScheduler):
     """Sets the learning rate of each parameter group to follow a linear warmup schedule between warmup_start_lr
