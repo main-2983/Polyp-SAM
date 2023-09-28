@@ -14,44 +14,17 @@ import sys
 from segment_anything.modeling.image_encoder import ImageEncoderViT
 from segment_anything.modeling.mask_decoder import MaskDecoder
 from segment_anything.modeling.prompt_encoder import PromptEncoder
-from src.models.SelfPromptBox.transformer import Transformer
+from src.models.SelfPromptBox.transformer import TransformerDecoderLayer,TransformerDecoder
 from src.models.SelfPromptBox.position_encoding import *
 from src.models.SelfPromptBox.detr import DETR
-
-class MLP(nn.Module):
-    """ Very simple multi-layer perceptron (also called FFN)"""
-
-    def __init__(self, input_dim, hidden_dim, output_dim, num_layers):
-        super().__init__()
-        self.num_layers = num_layers
-        h = [hidden_dim] * (num_layers - 1)
-        self.layers = nn.ModuleList(nn.Linear(n, k) for n, k in zip([input_dim] + h, h + [output_dim]))
-
-    def forward(self, x):
-        for i, layer in enumerate(self.layers):
-            x = F.relu(layer(x)) if i < self.num_layers - 1 else layer(x)
-        return x
-class Joiner(nn.Sequential):
-    def __init__(self, backbone, position_embedding):
-        super().__init__(backbone, position_embedding)
-
-    def forward(self, tensor_list: NestedTensor):
-        xs = self[0](tensor_list)
-        out: List[NestedTensor] = []
-        pos = []
-        for name, x in xs.items():
-            out.append(x)
-            # position encoding
-            pos.append(self[1](x).to(x.tensors.dtype))
-
-        return out, pos
+from tools.box_ops import box_cxcywh_to_xyxy
 class SelfBoxPromptSam(nn.Module):
     mask_threshold: float = 0.0
     image_format: str = "RGB"
 
     def __init__(
         self,
-        box_decoder:Transformer,
+        box_decoder:TransformerDecoder,
         image_encoder: ImageEncoderViT,
         prompt_encoder: PromptEncoder,
         mask_decoder: MaskDecoder,
@@ -71,11 +44,19 @@ class SelfBoxPromptSam(nn.Module):
           pixel_std (list(float)): Std values for normalizing pixels in the input image.
         """
         super().__init__()
-        self.num_queries=1000
-        self.hidden_dim=512
-        self.num_classes=2
-        self.box_decoder=box_decoder
-        # self.input_proj = nn.Conv2d(image_encoder.num_channels, self.hidden_dim, kernel_size=1)
+        self.num_queries=100
+        self.hidden_dim=256
+        self.num_classes=1
+        self.box_decoder_layer=TransformerDecoderLayer(d_model=self.hidden_dim,
+                                                       nhead=8,
+                                                       dim_feedforward=2048,
+                                                       dropout=0.1,
+                                                       activation='relu',
+                                                       normalize_before=False)
+        self.box_decoder= TransformerDecoder(self.box_decoder_layer, num_layers=6,
+                                             norm=nn.LayerNorm(self.hidden_dim),
+                                             return_intermediate=True)
+        self.query_embed=nn.Embedding(self.num_queries,self.hidden_dim)
         self.class_embed = nn.Linear(self.hidden_dim, self.num_classes + 1)
         self.bbox_embed = MLP(self.hidden_dim, self.hidden_dim, 4, 3)
         self.query_embed=nn.Embedding(self.num_queries, self.hidden_dim)
@@ -99,20 +80,30 @@ class SelfBoxPromptSam(nn.Module):
 
         image = input.get("image")  # [1, 1, 1024, 1024]
         image = torch.stack([self.preprocess(img) for img in image], dim=0)
-        # image_embedding = input.get("image_embedding", None)  # [1, 256, 64, 64]
 
-
-        # image_embeddings = self.image_encoder(input_images)
-        model=Joiner(self.image_encoder,self.position_embedding)
-        # if image_embedding is None:
-        image_embeddings,pos = model(image)
-        outputs = []
-        src, mask = image_embeddings[-1].decompose()
-        # hs=self.box_decoder(self.input_proj(src),mask,self.query_embed.weight,pos[-1])[0]
-        hs=self.box_decoder(src,mask,self.query_embed.weight,pos[-1])[0]
+        image_embeddings = self.image_encoder(input['image'])
+        # model=Joiner(self.image_encoder,self.position_embedding)
+        # # if image_embedding is None:
+        # image_embeddings,pos = model(image)
+        # outputs = []
+        # src, mask = image_embeddings[-1].decompose()
+        bs,c,w,h=image_embeddings.shape
+        query_embed= self.query_embed.weight.unsqueeze(1).repeat(1, bs, 1)
+        tgt = torch.zeros_like(query_embed)
+        memory=image_embeddings.flatten(2).permute(2,0,1) # (n_tokens,bs,hidden_dim)
+        hs=self.box_decoder(tgt,memory,
+                            memory_key_padding_mask=None,
+                            pos=None,
+                            query_pos=query_embed)
+                            
+        hs=hs.transpose(1,2) # n_decoders,bs,n_query,hidden_dim
+        memory=memory.permute(1,2,0).view(bs,c,h,w)
         outputs_class = self.class_embed(hs)
         outputs_coord = self.bbox_embed(hs).sigmoid()
-
+        out = {'pred_logits': outputs_class[-1], 'pred_boxes': outputs_coord[-1]}
+        postprocessors = {'bbox': PostProcess()}
+        orig_target_sizes= torch.stack([torch.tensor(input.get('image_size')).to(memory.device)])
+        results=postprocessors['bbox'](out, target_sizes=orig_target_sizes)        
         sparse_embeddings, dense_embeddings = self.prompt_encoder(
             points=None,
             boxes=None,
@@ -174,3 +165,61 @@ class SelfBoxPromptSam(nn.Module):
         padw = self.image_encoder.img_size - w
         x = F.pad(x, (0, padw, 0, padh))
         return x
+    
+class MLP(nn.Module):
+    """ Very simple multi-layer perceptron (also called FFN)"""
+
+    def __init__(self, input_dim, hidden_dim, output_dim, num_layers):
+        super().__init__()
+        self.num_layers = num_layers
+        h = [hidden_dim] * (num_layers - 1)
+        self.layers = nn.ModuleList(nn.Linear(n, k) for n, k in zip([input_dim] + h, h + [output_dim]))
+
+    def forward(self, x):
+        for i, layer in enumerate(self.layers):
+            x = F.relu(layer(x)) if i < self.num_layers - 1 else layer(x)
+        return x
+class Joiner(nn.Sequential):
+    def __init__(self, backbone, position_embedding):
+        super().__init__(backbone, position_embedding)
+
+    def forward(self, tensor_list: NestedTensor):
+        xs = self[0](tensor_list)
+        out: List[NestedTensor] = []
+        pos = []
+        for name, x in xs.items():
+            out.append(x)
+            # position encoding
+            pos.append(self[1](x).to(x.tensors.dtype))
+
+        return out, pos
+
+class PostProcess(nn.Module):
+    """ This module converts the model's output into the format expected by the coco api"""
+    @torch.no_grad()
+    def forward(self, outputs, target_sizes):
+        """ Perform the computation
+        Parameters:
+            outputs: raw outputs of the model
+            target_sizes: tensor of dimension [batch_size x 2] containing the size of each images of the batch
+                          For evaluation, this must be the original image size (before any data augmentation)
+                          For visualization, this should be the image size after data augment, but before padding
+        """
+        out_logits, out_bbox = outputs['pred_logits'], outputs['pred_boxes']
+
+        assert len(out_logits) == len(target_sizes)
+        assert target_sizes.shape[1] == 2
+
+        prob = F.softmax(out_logits, -1)
+        scores, labels = prob[..., :-1].max(-1)
+
+        # convert to [x0, y0, x1, y1] format
+        boxes = box_cxcywh_to_xyxy(out_bbox)
+        # and from relative [0, 1] to absolute [0, height] coordinates
+        img_h, img_w = target_sizes.unbind(1)
+        scale_fct = torch.stack([img_w, img_h, img_w, img_h], dim=1)
+        boxes = boxes * scale_fct[:, None, :]
+
+        results = [{'scores': s, 'labels': l, 'boxes': b} for s, l, b in zip(scores, labels, boxes)]
+
+        return results
