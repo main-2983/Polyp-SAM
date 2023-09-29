@@ -53,7 +53,7 @@ class SelfBoxPromptSam(nn.Module):
                                                        dropout=0.1,
                                                        activation='relu',
                                                        normalize_before=False)
-        self.box_decoder= TransformerDecoder(self.box_decoder_layer, num_layers=6,
+        self.box_decoder = TransformerDecoder(self.box_decoder_layer, num_layers=6,
                                              norm=nn.LayerNorm(self.hidden_dim),
                                              return_intermediate=True)
         self.query_embed=nn.Embedding(self.num_queries,self.hidden_dim)
@@ -103,25 +103,27 @@ class SelfBoxPromptSam(nn.Module):
         out = {'pred_logits': outputs_class[-1], 'pred_boxes': outputs_coord[-1]}
         postprocessors = {'bbox': PostProcess()}
         orig_target_sizes= torch.stack([torch.tensor(input.get('image_size')).to(memory.device)])
-        results=postprocessors['bbox'](out, target_sizes=orig_target_sizes)        
-        sparse_embeddings, dense_embeddings = self.prompt_encoder(
-            points=None,
-            boxes=None,
-            masks=None
-        )
-        low_res_masks, iou_predictions = self.mask_decoder(
-            image_embeddings=image_embeddings,
-            image_pe=self.prompt_encoder.get_dense_pe(),
-            sparse_prompt_embeddings=sparse_embeddings,
-            dense_prompt_embeddings=dense_embeddings,
-            multimask_output=multimask_output,
-        )
-        masks = self.postprocess_masks(
-            low_res_masks,
-            input_size=image.shape[-2:],
-            original_size=input.get("image_size"),
-        )
-        return masks
+        results=postprocessors['bbox'](out, target_sizes=orig_target_sizes) 
+        return out
+
+        # sparse_embeddings, dense_embeddings = self.prompt_encoder(
+        #     points=None,
+        #     boxes=None,
+        #     masks=None
+        # )
+        # low_res_masks, iou_predictions = self.mask_decoder(
+        #     image_embeddings=image_embeddings,
+        #     image_pe=self.prompt_encoder.get_dense_pe(),
+        #     sparse_prompt_embeddings=sparse_embeddings,
+        #     dense_prompt_embeddings=dense_embeddings,
+        #     multimask_output=multimask_output,
+        # )
+        # masks = self.postprocess_masks(
+        #     low_res_masks,
+        #     input_size=image.shape[-2:],
+        #     original_size=input.get("image_size"),
+        # )
+        # return masks
 
     def postprocess_masks(
         self,
