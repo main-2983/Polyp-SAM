@@ -183,15 +183,17 @@ def collate_fn(batch):
     new_box_labels = []
     label_class = []
     for box in box_labels:
-        number_object = box.shape[0]
-        label_class.append(torch.zeros(number_object,))
+        new_box = {}
+        new_label = {}
         center_x = ((box[:, 0] + box[:, 2])/2)/1024
         center_y = ((box[:, 1] + box[:, 3])/2)/1024
         W = (box[:, 2] - box[:, 0])/1024
         H = (box[:, 3] - box[:, 1])/1024
-        new_box = torch.stack((center_x, center_y, W, H), dim = 1)
+        new_box['boxes'] = torch.stack((center_x, center_y, W, H), dim = 1)
         new_box_labels.append(new_box)
-    new_box_labels = torch.stack(new_box_labels, dim = 0)
-    label_class = torch.stack(label_class, dim=0)
+        
+        number_object = box.shape[0]
+        new_label['label'] = torch.zeros(number_object,)
+        label_class.append(new_label)
     return images, masks, point_prompts, point_labels, box_prompts, task_prompts, new_box_labels, label_class
 

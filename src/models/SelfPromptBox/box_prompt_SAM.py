@@ -81,7 +81,7 @@ class SelfBoxPromptSam(nn.Module):
         image = input.get("image")  # [1, 1, 1024, 1024]
         image = torch.stack([self.preprocess(img) for img in image], dim=0)
 
-        image_embeddings = self.image_encoder(input['image']).deach()
+        image_embeddings = self.image_encoder(input['image']).deatch()
         # model=Joiner(self.image_encoder,self.position_embedding)
         # # if image_embedding is None:
         # image_embeddings,pos = model(image)
@@ -101,9 +101,9 @@ class SelfBoxPromptSam(nn.Module):
         outputs_class = self.class_embed(hs)
         outputs_coord = self.bbox_embed(hs).sigmoid()
         out = {'pred_logits': outputs_class[-1], 'pred_boxes': outputs_coord[-1]}
-        postprocessors = {'bbox': PostProcess()}
-        orig_target_sizes= torch.stack([torch.tensor(input.get('image_size')).to(memory.device)])
-        results=postprocessors['bbox'](out, target_sizes=orig_target_sizes) 
+        # postprocessors = {'bbox': PostProcess()}
+        # orig_target_sizes= torch.stack([torch.tensor(input.get('image_size')).to(memory.device)])
+        # results=postprocessors['bbox'](out, target_sizes=orig_target_sizes) 
         return out
 
         # sparse_embeddings, dense_embeddings = self.prompt_encoder(

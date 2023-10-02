@@ -97,6 +97,7 @@ def main():
                 point_prompts = batch[2]  # (B, num_boxes, points_per_box, 2)
                 point_labels = batch[3]  # (B, num_boxes, points_per_box)
                 box_prompts = batch[4]  # (B, num_boxes, 4)
+
                 image_size = (train_dataset.image_size, train_dataset.image_size)
                 batch_size = images.shape[0]  # Batch size
 
@@ -233,6 +234,9 @@ def main():
                 optimizer.zero_grad()
                 batch_loss = sum(batch_loss) / batch_size
                 epoch_losses.append(batch_loss)
+    
+            out = model2(image)
+            
 
         # After epoch
         scheduler.step()
