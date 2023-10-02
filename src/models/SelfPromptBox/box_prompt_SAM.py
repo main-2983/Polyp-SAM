@@ -81,7 +81,7 @@ class SelfBoxPromptSam(nn.Module):
         image = input.get("image")  # [1, 1, 1024, 1024]
         image = torch.stack([self.preprocess(img) for img in image], dim=0)
 
-        image_embeddings = self.image_encoder(input['image'])
+        image_embeddings = self.image_encoder(input['image']).deach()
         # model=Joiner(self.image_encoder,self.position_embedding)
         # # if image_embedding is None:
         # image_embeddings,pos = model(image)

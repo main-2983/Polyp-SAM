@@ -227,7 +227,7 @@ def main():
                             mask_input = selected_masks
                     # End of all round
                     batch_loss.append(round_loss)
-                
+
                 # After batch
                 optimizer.step()
                 optimizer.zero_grad()

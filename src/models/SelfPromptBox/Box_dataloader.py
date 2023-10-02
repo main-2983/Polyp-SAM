@@ -49,12 +49,16 @@ class PromptBaseDataset(Dataset):
         image = self.rgb_loader(self.image_paths[index])
         mask = self.binary_loader(self.mask_paths[index])
 
+        median = np.unique(gt)[len(np.unique(gt))//2]
+        gt = np.where(gt >= median, 255, gt)
+
         point_prompts = []
         point_labels = []
 
         # Extract Boxes
         boxes = sample_box(mask)
         boxes = filter_box(boxes, self.box_threshold)
+
 
         if self.transform is not None:
             transformed = self.transform(image=image,
@@ -64,7 +68,8 @@ class PromptBaseDataset(Dataset):
             image = transformed["image"]
             mask = transformed["mask"]
             boxes = np.asarray(transformed["bboxes"], dtype=np.int32)
-
+        
+        box_labels = boxes
         # Extract Points and Masks wrt box
         num_box = boxes.shape[0]
         masks = []
@@ -105,8 +110,8 @@ class PromptBaseDataset(Dataset):
         point_prompts = torch.as_tensor(point_prompts, dtype=torch.float) # (num_box, points_per_box, 2)
         point_labels = torch.as_tensor(point_labels, dtype=torch.int) # (num_box, points_per_box)
         box_prompts = torch.as_tensor(box_prompts, dtype=torch.float) # (num_box, 4)
-
-        return image, mask, point_prompts, point_labels, box_prompts, task_prompts
+        box_labels = torch.as_tensor(box_labels, dtype=torch.float)
+        return image, mask, point_prompts, point_labels, box_prompts, task_prompts, box_labels
 
 
 class ConcatPromptDataset(ConcatDataset):
@@ -114,3 +119,79 @@ class ConcatPromptDataset(ConcatDataset):
         super(ConcatPromptDataset, self).__init__(datasets)
 
         self.image_size = self.datasets[0].image_size
+
+def collate_fn(batch):
+    images, masks, point_prompts, point_labels, box_prompts, task_prompts, box_labels = zip(*batch)
+
+    images = torch.stack(images, dim=0)
+
+    # Process Box
+    # Find max length
+    max_num_box = 0
+    for box_prompt in box_prompts:
+        if box_prompt.shape[0] > max_num_box:
+            max_num_box = box_prompt.shape[0]
+    # Pad other with box [0, 0, 0, 0]
+    new_box_prompts = []
+    for box_prompt in box_prompts:
+        num_to_pad = max_num_box - box_prompt.shape[0]
+        pad_prompt = torch.tensor([[0, 0, 0, 0]], dtype=torch.float)
+        for i in range(num_to_pad):
+            box_prompt = torch.concatenate([box_prompt, pad_prompt], dim=0)
+        new_box_prompts.append(box_prompt)
+    box_prompts = torch.stack(new_box_prompts, dim=0)
+
+    new_point_prompts = []
+    # Process Points: Pad in negative point at (0, 0)
+    for point_prompt in point_prompts:
+        num_to_pad = max_num_box - point_prompt.shape[0]
+        pad_prompt = torch.zeros((1, *point_prompt.shape[1:]), dtype=torch.float)
+        for i in range(num_to_pad):
+            point_prompt = torch.concatenate([point_prompt, pad_prompt], dim=0)
+        new_point_prompts.append(point_prompt)
+    point_prompts = torch.stack(new_point_prompts, dim=0)
+
+    new_point_labels = []
+    # Process Labels: Pad in negative label
+    for point_label in point_labels:
+        num_to_pad = max_num_box - point_label.shape[0]
+        pad_prompt = torch.zeros((1, *point_label.shape[1:]), dtype=torch.int)
+        for i in range(num_to_pad):
+            point_label = torch.concatenate([point_label, pad_prompt], dim=0)
+        new_point_labels.append(point_label)
+    point_labels = torch.stack(new_point_labels, dim=0)
+
+    # Process Masks
+    new_masks = []
+    for mask in masks:
+        num_to_pad = max_num_box - mask.shape[0]
+        pad_mask = torch.zeros((1, *mask.shape[1:]))
+        for i in range(num_to_pad):
+            mask = torch.concatenate([mask, pad_mask], dim=0)
+        new_masks.append(mask)
+    masks = torch.stack(new_masks, dim=0)
+
+    # Process Task Prompt
+    new_task_prompts = []
+    for task_prompt in task_prompts:
+        num_to_pad = max_num_box - task_prompt.shape[0]
+        for i in range(num_to_pad):
+            task_prompt = torch.concatenate([task_prompt, task_prompt[0:1]], dim=0)
+        new_task_prompts.append(task_prompt)
+    task_prompts = torch.stack(new_task_prompts, dim=0)
+
+    new_box_labels = []
+    label_class = []
+    for box in box_labels:
+        number_object = box.shape[0]
+        label_class.append(torch.zeros(number_object,))
+        center_x = ((box[:, 0] + box[:, 2])/2)/1024
+        center_y = ((box[:, 1] + box[:, 3])/2)/1024
+        W = (box[:, 2] - box[:, 0])/1024
+        H = (box[:, 3] - box[:, 1])/1024
+        new_box = torch.stack((center_x, center_y, W, H), dim = 1)
+        new_box_labels.append(new_box)
+    new_box_labels = torch.stack(new_box_labels, dim = 0)
+    label_class = torch.stack(label_class, dim=0)
+    return images, masks, point_prompts, point_labels, box_prompts, task_prompts, new_box_labels, label_class
+

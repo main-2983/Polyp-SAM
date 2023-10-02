@@ -3,7 +3,7 @@ from glob import glob
 import torch
 from segmentation_models_pytorch.losses import DiceLoss, FocalLoss
 import sys
-sys.path.append('/home/dang.hong.thanh/Polyp-SAM/segment-anything/')
+# sys.path.append('/home/dang.hong.thanh/Polyp-SAM/segment-anything/')
 from segment_anything.modeling import Sam
 from segment_anything import sam_model_registry
 

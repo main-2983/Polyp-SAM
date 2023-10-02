@@ -65,7 +65,7 @@ class PromptBaseDataset(Dataset):
             image = transformed["image"]
             mask = transformed["mask"]
             boxes = np.asarray(transformed["bboxes"], dtype=np.int32)
-
+        
         # Extract Points and Masks wrt box
         num_box = boxes.shape[0]
         masks = []
