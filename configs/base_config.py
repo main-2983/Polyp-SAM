@@ -1,16 +1,15 @@
 from glob import glob
 
 import torch
-from segmentation_models_pytorch.losses import DiceLoss, FocalLoss
-import sys
-# sys.path.append('/home/dang.hong.thanh/Polyp-SAM/segment-anything/')
+from segmentation_models_pytorch.losses import DiceLoss
+from torch.nn import BCEWithLogitsLoss, MSELoss
+
 from segment_anything.modeling import Sam
 from segment_anything import sam_model_registry
-
-from src.models.SelfPromptPoint import SelfPointPromptSAM, PointGenModule
+from src.models.iterative_polypSAM import IterativePolypSAM
 from src.scheduler import LinearWarmupCosineAnnealingLR
 from src.losses import CombinedLoss
-from src.datasets.polyp.polyp_dataset import PolypDataset
+from src.datasets import PromptPolypDataset
 
 
 class Config:
@@ -21,33 +20,33 @@ class Config:
 
         # Model
         sam: Sam = sam_model_registry[MODEL_SIZE](PRETRAINED_PATH)
-        point_gen = PointGenModule()
-        self.model = SelfPointPromptSAM(point_gen,
-                                        sam.image_encoder,
-                                        sam.mask_decoder,
-                                        sam.prompt_encoder,
-                                        freeze=[sam.image_encoder, sam.mask_decoder, sam.prompt_encoder])
+        self.model = IterativePolypSAM(sam.image_encoder,
+                                       sam.mask_decoder,
+                                       sam.prompt_encoder)
 
         # Dataset and Dataloader
         IMG_PATH = "/home/dang.hong.thanh/sun_sam_polyp/Dataset/TrainDataset/image/*"
         MASK_PATH = "/home/dang.hong.thanh/sun_sam_polyp/Dataset/TrainDataset/mask/*"
+        self.USE_BOX_PROMPT = False
+        USE_CENTER_POINT = True
         self.IMAGE_SIZE = 1024
-        self.EMBEDDING_PATHS = None
-        self.dataset = PolypDataset(
+        self.dataset = PromptPolypDataset(
             glob(IMG_PATH),
             glob(MASK_PATH),
-            embedding_paths=self.EMBEDDING_PATHS,
-            image_size=self.IMAGE_SIZE
+            image_size=self.IMAGE_SIZE,
+            use_box_prompt=self.USE_BOX_PROMPT,
+            use_center_points=USE_CENTER_POINT
         )
 
         self.BATCH_SIZE = 1
-        self.NUM_WORKERS = 8
+        self.NUM_WORKERS = 0
 
         # Training
-        self.MAX_EPOCHS = 20
+        self.MAX_EPOCHS = 200
+        self.ROUND_PER_EPOCH = 6
 
         # Optimizer
-        self.ACCUMULATE_STEPS = 8
+        self.ACCUMULATE_STEPS = 1
         self.OPTIMIZER = torch.optim.AdamW
         self.OPTIMIZER_KWARGS = dict(
             lr=1e-4,
@@ -55,7 +54,7 @@ class Config:
         )
         self.SCHEDULER = LinearWarmupCosineAnnealingLR
         self.SCHEDULER_KWARGS = dict(
-            warmup_epochs=5,
+            warmup_epochs=30,
             max_epochs=self.MAX_EPOCHS,
             warmup_start_lr=5e-7,
             eta_min=1e-6
@@ -63,10 +62,16 @@ class Config:
 
         # Loss
         loss1 = DiceLoss(mode="binary", from_logits=True)
-        loss2 = FocalLoss(mode="binary")
+        loss2 = BCEWithLogitsLoss(reduction='mean')
         self.LOSS_FN = CombinedLoss(
             [loss1, loss2]
         )
+        self.IOU_LOSS = MSELoss()
+
+        # Sampling
+        self.RATE = 0.5
 
         # Save
-        self.SAVE_PATH = "workdir/train/Self-Prompt-Box"
+        self.SAVE_PATH = "workdir/train/"
+        self.EPOCH_TO_SAVE = 100
+        self.SAVE_FREQUENCY = 10

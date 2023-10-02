@@ -14,9 +14,8 @@ import sys
 from segment_anything.modeling.image_encoder import ImageEncoderViT
 from segment_anything.modeling.mask_decoder import MaskDecoder
 from segment_anything.modeling.prompt_encoder import PromptEncoder
-from src.models.SelfPromptBox.transformer import TransformerDecoderLayer,TransformerDecoder
+from src.models.SelfPromptBox.detection_head import DetectionHead
 from src.models.SelfPromptBox.position_encoding import *
-from src.models.SelfPromptBox.detr import DETR
 from tools.box_ops import box_cxcywh_to_xyxy
 class SelfBoxPromptSam(nn.Module):
     mask_threshold: float = 0.0
@@ -24,7 +23,7 @@ class SelfBoxPromptSam(nn.Module):
 
     def __init__(
         self,
-        box_decoder:TransformerDecoder,
+        box_decoder:DetectionHead,
         image_encoder: ImageEncoderViT,
         prompt_encoder: PromptEncoder,
         mask_decoder: MaskDecoder,
@@ -44,23 +43,8 @@ class SelfBoxPromptSam(nn.Module):
           pixel_std (list(float)): Std values for normalizing pixels in the input image.
         """
         super().__init__()
-        self.num_queries=100
-        self.hidden_dim=256
-        self.num_classes=1
-        self.box_decoder_layer=TransformerDecoderLayer(d_model=self.hidden_dim,
-                                                       nhead=8,
-                                                       dim_feedforward=2048,
-                                                       dropout=0.1,
-                                                       activation='relu',
-                                                       normalize_before=False)
-        self.box_decoder = TransformerDecoder(self.box_decoder_layer, num_layers=6,
-                                             norm=nn.LayerNorm(self.hidden_dim),
-                                             return_intermediate=True)
-        self.query_embed=nn.Embedding(self.num_queries,self.hidden_dim)
-        self.class_embed = nn.Linear(self.hidden_dim, self.num_classes + 1)
-        self.bbox_embed = MLP(self.hidden_dim, self.hidden_dim, 4, 3)
-        self.query_embed=nn.Embedding(self.num_queries, self.hidden_dim)
-        self.position_embedding = PositionEmbeddingSine(self.hidden_dim//2, normalize=True)
+
+        self.box_decoder = box_decoder
         self.image_encoder = image_encoder
         self.prompt_encoder = prompt_encoder
         self.mask_decoder = mask_decoder
@@ -71,59 +55,39 @@ class SelfBoxPromptSam(nn.Module):
     def device(self) -> Any:
         return self.pixel_mean.device
 
-    @torch.no_grad()
     def forward(
         self,
         input: List[Dict[str, Any]],
-        multimask_output: bool= False,
+        multimask_output: bool= True,
     ) -> List[Dict[str, torch.Tensor]]:
 
         image = input.get("image")  # [1, 1, 1024, 1024]
         image = torch.stack([self.preprocess(img) for img in image], dim=0)
 
-        image_embeddings = self.image_encoder(input['image']).deach()
-        # model=Joiner(self.image_encoder,self.position_embedding)
-        # # if image_embedding is None:
-        # image_embeddings,pos = model(image)
-        # outputs = []
-        # src, mask = image_embeddings[-1].decompose()
-        bs,c,w,h=image_embeddings.shape
-        query_embed= self.query_embed.weight.unsqueeze(1).repeat(1, bs, 1)
-        tgt = torch.zeros_like(query_embed)
-        memory=image_embeddings.flatten(2).permute(2,0,1) # (n_tokens,bs,hidden_dim)
-        hs=self.box_decoder(tgt,memory,
-                            memory_key_padding_mask=None,
-                            pos=None,
-                            query_pos=query_embed)
-                            
-        hs=hs.transpose(1,2) # n_decoders,bs,n_query,hidden_dim
-        memory=memory.permute(1,2,0).view(bs,c,h,w)
-        outputs_class = self.class_embed(hs)
-        outputs_coord = self.bbox_embed(hs).sigmoid()
-        out = {'pred_logits': outputs_class[-1], 'pred_boxes': outputs_coord[-1]}
+        image_embeddings = self.image_encoder(input['image'])
+        out=self.box_decoder(image_embeddings)
         postprocessors = {'bbox': PostProcess()}
-        orig_target_sizes= torch.stack([torch.tensor(input.get('image_size')).to(memory.device)])
+        orig_target_sizes= torch.stack([torch.tensor(input.get('image_size')).to(image.device)])
         results=postprocessors['bbox'](out, target_sizes=orig_target_sizes) 
-        return out
 
-        # sparse_embeddings, dense_embeddings = self.prompt_encoder(
-        #     points=None,
-        #     boxes=None,
-        #     masks=None
-        # )
-        # low_res_masks, iou_predictions = self.mask_decoder(
-        #     image_embeddings=image_embeddings,
-        #     image_pe=self.prompt_encoder.get_dense_pe(),
-        #     sparse_prompt_embeddings=sparse_embeddings,
-        #     dense_prompt_embeddings=dense_embeddings,
-        #     multimask_output=multimask_output,
-        # )
-        # masks = self.postprocess_masks(
-        #     low_res_masks,
-        #     input_size=image.shape[-2:],
-        #     original_size=input.get("image_size"),
-        # )
-        # return masks
+        sparse_embeddings, dense_embeddings = self.prompt_encoder(
+            points=None,
+            boxes=None,
+            masks=None
+        )
+        low_res_masks, iou_predictions = self.mask_decoder(
+            image_embeddings=image_embeddings,
+            image_pe=self.prompt_encoder.get_dense_pe(),
+            sparse_prompt_embeddings=sparse_embeddings,
+            dense_prompt_embeddings=dense_embeddings,
+            multimask_output=multimask_output,
+        )
+        masks = self.postprocess_masks(
+            low_res_masks,
+            input_size=image.shape[-2:],
+            original_size=input.get("image_size"),
+        )
+        return low_res_masks,iou_predictions,out
 
     def postprocess_masks(
         self,

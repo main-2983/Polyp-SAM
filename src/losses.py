@@ -40,5 +40,7 @@ class CombinedLoss(nn.Module):
     def forward(self, pred, mask):
         loss = 0
         for loss_fn in self.losses:
+            print('pred:',pred.shape)
+            print('mask1:',mask.shape)
             loss += loss_fn(pred, mask)
         return loss
