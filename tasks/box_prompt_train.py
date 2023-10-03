@@ -97,12 +97,9 @@ def main():
             with accelerator.accumulate(model):
                 images = batch[0]  # (B, C, H, W)
                 masks = batch[1]  # (B, C, H, W)
-                print('mask ',masks.shape)
                 point_prompts = batch[2]  # (B, num_boxes, points_per_box, 2)
                 point_labels = batch[3]  # (B, num_boxes, points_per_box)
                 box_prompts = batch[4]  # (B, num_boxes, 4)
-                new_box_labels=batch[6]
-                label_class=batch[7]
                 image_size = (train_dataset.image_size, train_dataset.image_size)
                 batch_size = images.shape[0]  # Batch size
 
@@ -122,7 +119,7 @@ def main():
                     point = (point_prompt, point_label)
                     for round in range(config.ROUND_PER_EPOCH):
                         model_input = {
-                            "image": image.unsqueeze(0),
+                            "image": image,
                             "point_prompt": point if round < config.ROUND_PER_EPOCH - 1 else None,
                             "box_prompt": box_prompt if config.USE_BOX_PROMPT and round == 0 else None,
                             "mask_input": mask_input,
@@ -130,8 +127,8 @@ def main():
                         }
                         # low_res_mask (num_objects, num_preds, 256, 256)
                         # iou_predictions (num_objects, num_preds)
-                        low_res_masks, iou_predictions,_ = model(model_input)
-
+                        low_res_masks, iou_predictions = model.forward_mask(model_input)
+                        # print('low res:',low_res_masks.shape)
                         # Select the mask with highest IoU for each object
                         max_idx = torch.argmax(iou_predictions, dim=1)
                         selected_masks = low_res_masks[0:1, max_idx[0]:max_idx[0] + 1, ...]  # (num_objects, 1, 256, 256)
@@ -233,7 +230,7 @@ def main():
                             mask_input = selected_masks
                     # End of all round
                     batch_loss.append(round_loss)
-
+                
                 # After batch
                 optimizer.step()
                 optimizer.zero_grad()

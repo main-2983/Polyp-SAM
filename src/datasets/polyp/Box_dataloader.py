@@ -50,8 +50,8 @@ class PromptBaseDataset(Dataset):
         image = self.rgb_loader(self.image_paths[index])
         mask = self.binary_loader(self.mask_paths[index])
 
-        median = np.unique(mask)[len(np.unique(mask))//2]
-        mask = np.where(mask >= median, 255, mask)
+        # median = np.unique(mask)[len(np.unique(mask))//2]
+        # mask = np.where(mask >= median, 255, mask)
 
         point_prompts = []
         point_labels = []
@@ -125,7 +125,6 @@ def collate_fn(batch):
     images, masks, point_prompts, point_labels, box_prompts, task_prompts, box_labels = zip(*batch)
 
     images = torch.stack(images, dim=0)
-
     # Process Box
     # Find max length
     max_num_box = 0
@@ -171,7 +170,6 @@ def collate_fn(batch):
             mask = torch.concatenate([mask, pad_mask], dim=0)
         new_masks.append(mask)
     masks = torch.stack(new_masks, dim=0)
-
     # Process Task Prompt
     new_task_prompts = []
     for task_prompt in task_prompts:
@@ -197,6 +195,7 @@ def collate_fn(batch):
         label_class.append(new_label)
     # new_box_labels = torch.stack(new_box_labels, dim = 0)
     # label_class = torch.stack(label_class, dim=0)
+    # print(masks.shape)
     return images, masks, point_prompts, point_labels, box_prompts, task_prompts, new_box_labels, label_class
 
 def create_dataloader(dataset,

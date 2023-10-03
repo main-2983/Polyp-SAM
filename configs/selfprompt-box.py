@@ -34,8 +34,8 @@ class Config:
                             num_queries=100,)
         self.model = SelfBoxPromptSam(self.box_decoder,
                                     sam.image_encoder,
-                                    sam.prompt_encoder,
-                                    sam.mask_decoder)
+                                    sam.mask_decoder,
+                                    sam.prompt_encoder)
         point_gen = PointGenModule()
         # self.model= SelfPointPromptSAM(point_gen,
         #                                 sam.image_encoder,

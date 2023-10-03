@@ -125,7 +125,6 @@ def main():
                         # low_res_mask (num_objects, num_preds, 256, 256)
                         # iou_predictions (num_objects, num_preds)
                         low_res_masks, iou_predictions = model(model_input)
-
                         # Select the mask with highest IoU for each object
                         max_idx = torch.argmax(iou_predictions, dim=1)
                         selected_masks = low_res_masks[0:1, max_idx[0]:max_idx[0] + 1, ...]  # (num_objects, 1, 256, 256)
