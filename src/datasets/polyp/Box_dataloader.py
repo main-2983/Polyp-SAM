@@ -50,8 +50,8 @@ class PromptBaseDataset(Dataset):
         image = self.rgb_loader(self.image_paths[index])
         mask = self.binary_loader(self.mask_paths[index])
 
-        median = np.unique(mask)[len(np.unique(mask))//2]
-        mask = np.where(mask >= median, 255, mask)
+        # median = np.unique(mask)[len(np.unique(mask))//2]
+        # mask = np.where(mask >= median, 255, mask)
 
         point_prompts = []
         point_labels = []
@@ -125,7 +125,6 @@ def collate_fn(batch):
     images, masks, point_prompts, point_labels, box_prompts, task_prompts, box_labels = zip(*batch)
 
     images = torch.stack(images, dim=0)
-
     # Process Box
     # Find max length
     max_num_box = 0
@@ -171,7 +170,6 @@ def collate_fn(batch):
             mask = torch.concatenate([mask, pad_mask], dim=0)
         new_masks.append(mask)
     masks = torch.stack(new_masks, dim=0)
-
     # Process Task Prompt
     new_task_prompts = []
     for task_prompt in task_prompts:
@@ -181,22 +179,21 @@ def collate_fn(batch):
         new_task_prompts.append(task_prompt)
     task_prompts = torch.stack(new_task_prompts, dim=0)
 
-    new_box_labels = []
-    label_class = []
+    target_detection = []
     for box in box_labels:
-        new_box = {}
-        new_label = {}
+        targets = {}
         center_x = ((box[:, 0] + box[:, 2])/2)/1024
         center_y = ((box[:, 1] + box[:, 3])/2)/1024
         W = (box[:, 2] - box[:, 0])/1024
         H = (box[:, 3] - box[:, 1])/1024
-        new_box['boxes']['boxes'] = torch.stack((center_x, center_y, W, H), dim = 1)
-        new_box_labels.append(new_box)
-        
+        targets['boxes'] = torch.stack((center_x, center_y, W, H), dim = 1)
         number_object = box.shape[0]
-        new_label['label'] = torch.zeros(number_object,)
-        label_class.append(new_label)
-    return images, masks, point_prompts, point_labels, box_prompts, task_prompts, new_box_labels, label_class
+        targets['labels'] = torch.zeros(number_object,dtype=torch.long)
+        target_detection.append(targets)
+    # new_box_labels = torch.stack(new_box_labels, dim = 0)
+    # label_class = torch.stack(label_class, dim=0)
+    # print(masks.shape)
+    return images, masks, point_prompts, point_labels, box_prompts, task_prompts, target_detection
 
 def create_dataloader(dataset,
                       batch_size: int = 16,

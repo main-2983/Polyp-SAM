@@ -22,7 +22,7 @@ sys.path.append(os.path.dirname(package))
 from src.datasets import uniform_sample_points
 from src.datasets.polyp.Box_dataloader import create_dataloader
 from src.metrics import iou_torch
-
+from src.models.SelfPromptBox.criterion import build_criterion
 try:
     import wandb
 except ImportError:
@@ -76,11 +76,16 @@ def main():
     iou_loss = config.IOU_LOSS
 
     # Optimizer
-    optimizer = config.OPTIMIZER(model.parameters(), **config.OPTIMIZER_KWARGS)
+    optimizer = config.OPTIMIZER(list(model.image_encoder.parameters()) + list(model.prompt_encoder.parameters()) + list(model.mask_decoder.parameters()), **config.OPTIMIZER_KWARGS)
     scheduler = config.SCHEDULER(optimizer, **config.SCHEDULER_KWARGS)
 
-    model, optimizer, train_loader = accelerator.prepare(
-        model, optimizer, train_loader
+    optimizer_detection = config.OPTIMIZER(list(model.box_decoder.parameters()), **config.OPTIMIZER_KWARGS_DETECTION)
+    scheduler_detection = config.SCHEDULER_DETECTION(optimizer_detection, 50)
+
+    criterion = build_criterion()
+
+    model, optimizer, train_loader, optimizer_detection, criterion = accelerator.prepare(
+        model, optimizer, train_loader, optimizer_detection, criterion
     )
 
     device = model.device
@@ -91,18 +96,16 @@ def main():
 
     for epoch in range(1, config.MAX_EPOCHS + 1):
         epoch_losses = []
-
+        epoch_dect_losses = []
         # One epoch
         for batch in tqdm(train_loader, desc=f"epoch: {epoch}", disable=not accelerator.is_main_process):
             with accelerator.accumulate(model):
                 images = batch[0]  # (B, C, H, W)
                 masks = batch[1]  # (B, C, H, W)
-                print('mask ',masks.shape)
                 point_prompts = batch[2]  # (B, num_boxes, points_per_box, 2)
                 point_labels = batch[3]  # (B, num_boxes, points_per_box)
                 box_prompts = batch[4]  # (B, num_boxes, 4)
-                new_box_labels=batch[6]
-                label_class=batch[7]
+                target_detection = batch[6]
                 image_size = (train_dataset.image_size, train_dataset.image_size)
                 batch_size = images.shape[0]  # Batch size
 
@@ -122,7 +125,7 @@ def main():
                     point = (point_prompt, point_label)
                     for round in range(config.ROUND_PER_EPOCH):
                         model_input = {
-                            "image": image.unsqueeze(0),
+                            "image": image,
                             "point_prompt": point if round < config.ROUND_PER_EPOCH - 1 else None,
                             "box_prompt": box_prompt if config.USE_BOX_PROMPT and round == 0 else None,
                             "mask_input": mask_input,
@@ -130,8 +133,8 @@ def main():
                         }
                         # low_res_mask (num_objects, num_preds, 256, 256)
                         # iou_predictions (num_objects, num_preds)
-                        low_res_masks, iou_predictions,_ = model(model_input)
-
+                        low_res_masks, iou_predictions = model.forward_mask(model_input)
+                        # print('low res:',low_res_masks.shape)
                         # Select the mask with highest IoU for each object
                         max_idx = torch.argmax(iou_predictions, dim=1)
                         selected_masks = low_res_masks[0:1, max_idx[0]:max_idx[0] + 1, ...]  # (num_objects, 1, 256, 256)
@@ -233,20 +236,34 @@ def main():
                             mask_input = selected_masks
                     # End of all round
                     batch_loss.append(round_loss)
-
+                
                 # After batch
                 optimizer.step()
                 optimizer.zero_grad()
                 batch_loss = sum(batch_loss) / batch_size
                 epoch_losses.append(batch_loss)
 
+                target_detection=[{k: v.to(device) for k, v in t.items()} for t in target_detection]
+                outputs = model.forward_box(input_images)
+                loss_dict = criterion(outputs, target_detection)
+                weight_dict = criterion.weight_dict
+                losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
+                
+                accelerator.backward(losses)
+                optimizer_detection.step()
+                optimizer_detection.zero_grad()
+                
+                epoch_dect_losses.append(losses)
+
         # After epoch
         scheduler.step()
+        scheduler_detection.step()
+        epoch_dect_losses = sum(epoch_dect_losses) / len(epoch_dect_losses)
         epoch_loss = sum(epoch_losses) / len(epoch_losses)
-        logger.info(f"Epoch: {epoch} \t Loss: {epoch_loss}", main_process_only=True)
+        logger.info(f"Epoch: {epoch} \t Loss_mask: {epoch_loss} \t Loss_detection: {epoch_dect_losses}", main_process_only=True)
         if accelerator.is_main_process:
             with open(f"{save_folder}/exp.log", 'a') as f:
-                f.write(f"Epoch: {epoch} \t Loss: {epoch_loss} \n")
+                f.write(f"Epoch: {epoch} \t Loss: {epoch_loss} \t {epoch_dect_losses}\n")
 
         # Saving
         if epoch >= config.EPOCH_TO_SAVE and epoch % config.SAVE_FREQUENCY == 0:

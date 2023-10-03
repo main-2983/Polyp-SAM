@@ -34,8 +34,8 @@ class Config:
                             num_queries=100,)
         self.model = SelfBoxPromptSam(self.box_decoder,
                                     sam.image_encoder,
-                                    sam.prompt_encoder,
-                                    sam.mask_decoder)
+                                    sam.mask_decoder,
+                                    sam.prompt_encoder)
         point_gen = PointGenModule()
         # self.model= SelfPointPromptSAM(point_gen,
         #                                 sam.image_encoder,
@@ -44,8 +44,8 @@ class Config:
         #                                 freeze=[sam.image_encoder, sam.mask_decoder, sam.prompt_encoder])
 
         # Dataset and Dataloader
-        IMG_PATH = "/home/dang.hong.thanh/sun_sam_polyp/Dataset/TrainDataset/image/*"
-        MASK_PATH = "/home/dang.hong.thanh/sun_sam_polyp/Dataset/TrainDataset/mask/*"
+        IMG_PATH = "/home/trinh.quang.huy/sun-polyp/Dataset/TrainDataset/image/*"
+        MASK_PATH = "/home/trinh.quang.huy/sun-polyp/Dataset/TrainDataset/mask/*"
         self.IMAGE_SIZE = 1024
         self.EMBEDDING_PATHS = None
         self.dataset = PromptBaseDataset(
@@ -55,7 +55,7 @@ class Config:
         )
         self.USE_BOX_PROMPT = False
 
-        self.BATCH_SIZE = 1
+        self.BATCH_SIZE = 2
         self.NUM_WORKERS = 8
 
         # Training
@@ -69,6 +69,12 @@ class Config:
             lr=1e-4,
             weight_decay=0.001
         )
+
+        self.OPTIMIZER_KWARGS_DETECTION = dict(
+            lr=1e-4,
+            weight_decay=1e-4
+        )
+        
         self.SCHEDULER = LinearWarmupCosineAnnealingLR
         self.SCHEDULER_KWARGS = dict(
             warmup_epochs=5,
@@ -76,6 +82,8 @@ class Config:
             warmup_start_lr=5e-7,
             eta_min=1e-6
         )
+
+        self.SCHEDULER_DETECTION = torch.optim.lr_scheduler.StepLR
 
         # Loss
         self.IOU_LOSS = MSELoss()
@@ -87,4 +95,6 @@ class Config:
 
         # Save
         self.SAVE_PATH = "workdir/train/Self-Prompt-Box"
+        self.EPOCH_TO_SAVE = 1
+        self.SAVE_FREQUENCY = 10
         self.RATE = 0.5
