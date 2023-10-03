@@ -69,4 +69,4 @@ class Config:
         )
 
         # Save
-        self.SAVE_PATH = "workdir/train/Self-Prompt-Point"
+        self.SAVE_PATH = "workdir/train/Self-Prompt-Box"

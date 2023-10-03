@@ -1,14 +1,15 @@
-from typing import Iterable
+from typing import Union, Callable, Optional,Iterable
 
 import numpy as np
 from PIL import Image, ImageFile
 ImageFile.LOAD_TRUNCATED_IMAGES = True
+from torch.utils.data import  DataLoader
 
 import torch
 from torch.utils.data import Dataset, ConcatDataset
 from torchvision.transforms import ToTensor
 
-from .src.polyp.utils import sample_box, filter_box, uniform_sample_points, sample_center_point
+from src.datasets.utils import sample_box, filter_box, uniform_sample_points, sample_center_point
 
 class PromptBaseDataset(Dataset):
     def __init__(self,
@@ -49,8 +50,8 @@ class PromptBaseDataset(Dataset):
         image = self.rgb_loader(self.image_paths[index])
         mask = self.binary_loader(self.mask_paths[index])
 
-        median = np.unique(gt)[len(np.unique(gt))//2]
-        gt = np.where(gt >= median, 255, gt)
+        median = np.unique(mask)[len(np.unique(mask))//2]
+        mask = np.where(mask >= median, 255, mask)
 
         point_prompts = []
         point_labels = []
@@ -189,7 +190,7 @@ def collate_fn(batch):
         center_y = ((box[:, 1] + box[:, 3])/2)/1024
         W = (box[:, 2] - box[:, 0])/1024
         H = (box[:, 3] - box[:, 1])/1024
-        new_box['boxes'] = torch.stack((center_x, center_y, W, H), dim = 1)
+        new_box['boxes']['boxes'] = torch.stack((center_x, center_y, W, H), dim = 1)
         new_box_labels.append(new_box)
         
         number_object = box.shape[0]
@@ -197,3 +198,15 @@ def collate_fn(batch):
         label_class.append(new_label)
     return images, masks, point_prompts, point_labels, box_prompts, task_prompts, new_box_labels, label_class
 
+def create_dataloader(dataset,
+                      batch_size: int = 16,
+                      num_workers: int = 4,
+                      shuffle: bool = True,
+                      collate_fn: Optional[Callable] = collate_fn):
+    dataloader = DataLoader(dataset,
+                            batch_size=batch_size,
+                            shuffle=shuffle,
+                            num_workers=num_workers,
+                            collate_fn=collate_fn)
+
+    return dataset, dataloader
