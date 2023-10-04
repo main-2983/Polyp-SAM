@@ -76,6 +76,24 @@ class PointHead(nn.Module):
 
         return obj_pred
 
+    def decode_prediction(self,
+                          obj_pred: torch.Tensor,
+                          threshold: float = 0.5):
+        """ This is a single image prediction, do not use it on batch size > 1"""
+        _, _, H, W = obj_pred.shape
+        device = obj_pred.device
+        flatten_pred = obj_pred.flatten()
+        flatten_pred = flatten_pred.sigmoid()
+        positive_mask = torch.where(flatten_pred >= threshold, True, False)
+        priors = self.prior_generator.grid_points((H, W), stride=self.stride, device=device) # (H * W, 2)
+        positive_priors = priors[positive_mask] # (positive_points, 2)
+        positive_priors *= self.stride
+
+        point_labels = torch.ones((1, positive_priors.shape[0]), dtype=torch.long, device=device)
+
+        return positive_priors.unsqueeze(0),\
+               point_labels # (1, positive_points, 2) -> Expand num_box dim
+
     def prepare_for_loss(self,
                          obj_pred: torch.Tensor,
                          gt_bboxes: Sequence[torch.Tensor]):
@@ -103,8 +121,8 @@ class PointHead(nn.Module):
             points_targets.append(points_target)
             num_positives += num_positive
         points_targets = torch.cat(points_targets, 0)
-        flatten_obj_preds = obj_pred.permute(0, 2, 3, 1).reshape(num_imgs, -1)
-        flatten_obj_preds = flatten_obj_preds.view(-1, 1)
+        flatten_obj_preds = obj_pred.permute(0, 2, 3, 1).reshape(num_imgs, -1).contiguous()
+        flatten_obj_preds = flatten_obj_preds.view(-1, 1).contiguous()
         points_targets = points_targets.unsqueeze(1)
         return flatten_obj_preds, points_targets, num_positives
 
