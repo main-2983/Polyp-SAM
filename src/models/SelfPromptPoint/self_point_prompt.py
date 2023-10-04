@@ -2,11 +2,54 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .point_gen_module import PointGenModule, PointGenModulev2
-
 from typing import List, Tuple, Dict, Any
 
 from segment_anything.modeling import MaskDecoder, ImageEncoderViT, PromptEncoder
+
+
+class PointGenModel(nn.Module):
+    mask_threshold: float = 0.0
+    image_format: str = "RGB"
+    def __init__(self,
+                 image_encoder: ImageEncoderViT,
+                 point_model: nn.Module,
+                 pixel_mean: List[float] = [0.485, 0.456, 0.406],
+                 pixel_std: List[float] = [0.229, 0.224, 0.225],
+                 freeze: bool = True):
+        super(PointGenModel, self).__init__()
+        self.image_encoder = image_encoder
+        self.point_model = point_model
+
+        self.register_buffer('pixel_mean', torch.tensor(pixel_mean).view(-1, 1, 1), False)
+        self.register_buffer('pixel_std', torch.tensor(pixel_std).view(-1, 1, 1), False)
+
+        if freeze:
+            for param in self.image_encoder.parameters():
+                param.requires_grad = False
+
+    @property
+    def device(self) -> Any:
+        return self.pixel_mean.device
+
+    def preprocess(self, x: torch.Tensor) -> torch.Tensor:
+        """Normalize pixel values and pad to a square input."""
+        # Normalize colors
+        x = (x - self.pixel_mean) / self.pixel_std
+
+        # Pad
+        h, w = x.shape[-2:]
+        padh = self.image_encoder.img_size - h
+        padw = self.image_encoder.img_size - w
+        x = F.pad(x, (0, padw, 0, padh))
+        return x
+
+    def forward(self, x):
+        image = torch.stack([self.preprocess(img) for img in x], dim=0)
+        image_embedding = self.image_encoder(image)
+
+        point_pred = self.point_model(image_embedding)
+
+        return point_pred
 
 
 class SelfPointPromptSAM(nn.Module):
@@ -14,7 +57,7 @@ class SelfPointPromptSAM(nn.Module):
     image_format: str = "RGB"
     def __init__(
             self,
-            point_model: PointGenModule,
+            point_model: nn.Module,
             image_encoder: ImageEncoderViT,
             mask_decoder: MaskDecoder,
             prompt_encoder: PromptEncoder,
@@ -136,7 +179,7 @@ class SelfPointPromptSAM(nn.Module):
 
 class SelfPointPromptSAMv2(SelfPointPromptSAM):
     def __init__(self,
-                 point_model: PointGenModulev2,
+                 point_model: nn.Module,
                  *args,
                  **kwargs):
         super(SelfPointPromptSAMv2, self).__init__(point_model, *args, **kwargs)
