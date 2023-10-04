@@ -4,6 +4,7 @@ import time
 import datetime
 import importlib  # for import module
 import shutil  # for copy files
+from collections import OrderedDict
 from tqdm import tqdm
 
 import logging
@@ -112,7 +113,14 @@ def main():
         # Saving
         accelerator.wait_for_everyone()
         model_state_dict = accelerator.get_state_dict(model)
-        accelerator.save(model_state_dict, f"{save_folder}/ckpts/{epoch}.pt")
+
+        # Save only the weight of Point Head
+        point_head_state_dict = OrderedDict()
+        for k, v in model_state_dict.items():
+            if "point_model" in k:
+                point_head_state_dict[k] = v
+
+        accelerator.save(point_head_state_dict, f"{save_folder}/ckpts/{epoch}.pt")
 
     end_time = time.time()
     logger.info(f"Training time: {(end_time - start_time)/3600:.2f}", main_process_only=True)
