@@ -16,6 +16,7 @@ import sys
 package = os.path.join(os.path.dirname(sys.path[0]), "src")
 sys.path.append(os.path.dirname(package))
 from src.datasets.polyp.polyp_dataset import PolypDataset
+from src.datasets import UnNormalize
 from src.metrics import get_scores, weighted_score
 from src.plot_utils import show_points, show_mask
 
@@ -105,10 +106,17 @@ def test_prompt(checkpoint,
 
             if (store):
                 plt.figure(figsize=(10, 10))
-                show_mask(gt_mask, plt.gca())
+                image = UnNormalize(sam.pixel_mean, sam.pixel_std)(image)
+                image_np = image.cpu().numpy().transpose(1, 2, 0)
+                plt.imshow(image_np)
+                show_mask(final_mask, plt.gca())
                 show_points(point_np, label_np, plt.gca())
                 plt.axis("off")
                 plt.savefig(f"{store_path}/Self-Prompt-Point/{dataset_name}/{name}.png")
+                plt.close()
+                point_pred_np = point_pred[0, 0].cpu().numpy()
+                plt.imshow(point_pred_np)
+                plt.savefig(f"{store_path}/Self-Prompt-Point/{dataset_name}/{name}_featmap.png")
                 plt.close()
 
         mean_iou, mean_dice, mean_precision, mean_recall = get_scores(gts, prs)
