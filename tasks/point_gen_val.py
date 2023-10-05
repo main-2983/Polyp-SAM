@@ -30,13 +30,21 @@ def test_prompt(checkpoint,
     config = module.Config()
     # Point Model
     point_gen = config.point_gen
-    state_dict = torch.load(checkpoint, map_location="cpu")
+    trained_state_dict = torch.load(checkpoint, map_location="cpu")
+    state_dict = point_gen.state_dict()
+    # Remove string in keys
+    for k, v in trained_state_dict.items():
+        key = k.split("point_model.")[1]
+        state_dict[key] = v
     point_gen.load_state_dict(state_dict)
     point_gen.eval()
     point_gen = point_gen.to("cuda")
 
     # SAM
     sam = config.sam
+    sam.pixel_mean = torch.Tensor([0.485, 0.456, 0.406]).view(-1, 1, 1)
+    sam.pixel_std = torch.Tensor([0.229, 0.224, 0.225]).view(-1, 1, 1)
+    sam.to("cuda")
     predictor = SamPredictor(sam)
     device = sam.device
 
