@@ -41,7 +41,7 @@ class SelfBoxPromptSam(IterativePolypSAM):
         points = input.get("point_prompt")
         sparse_embeddings, dense_embeddings = self.prompt_encoder(
             points=points,
-            boxes=None,
+            boxes=input.get("box_prompt"),
             masks=input.get("mask_input", None),
         )
         low_res_masks, iou_predictions = self.mask_decoder(

@@ -44,8 +44,8 @@ class Config:
         #                                 freeze=[sam.image_encoder, sam.mask_decoder, sam.prompt_encoder])
 
         # Dataset and Dataloader
-        IMG_PATH = "/home/trinh.quang.huy/sun-polyp/Dataset/TrainDataset/image/*"
-        MASK_PATH = "/home/trinh.quang.huy/sun-polyp/Dataset/TrainDataset/mask/*"
+        IMG_PATH = "/home/dang.hong.thanh/sun_sam_polyp/Dataset/TrainDataset/image/*"
+        MASK_PATH = "/home/dang.hong.thanh/sun_sam_polyp/Dataset/TrainDataset/mask/*"
         self.IMAGE_SIZE = 1024
         self.EMBEDDING_PATHS = None
         self.dataset = PromptBaseDataset(
@@ -98,3 +98,5 @@ class Config:
         self.EPOCH_TO_SAVE = 1
         self.SAVE_FREQUENCY = 10
         self.RATE = 0.5
+
+        self.USE_BOX_PROMPT=True
