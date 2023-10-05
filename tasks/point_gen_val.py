@@ -25,6 +25,7 @@ from src.plot_utils import show_points, show_mask
 def test_prompt(checkpoint,
                 config,
                 test_folder,
+                threshold: float = 0.1,
                 store: bool = False,
                 store_path: str = None):
     module = importlib.import_module(config)
@@ -84,7 +85,7 @@ def test_prompt(checkpoint,
             predictor.set_torch_image(image[None], image_size)
 
             point_pred = point_gen(predictor.features)
-            point_prompt, point_label = point_gen.decode_prediction(point_pred) # (1, num_points, 2), (1, num_points)
+            point_prompt, point_label = point_gen.decode_prediction(point_pred, threshold=threshold) # (1, num_points, 2), (1, num_points)
 
             pred_masks, scores, logits = predictor.predict_torch(
                 point_coords=point_prompt,
@@ -155,6 +156,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('ckpt', type=str, help="Model checkpoint")
     parser.add_argument('config', type=str, help="Model config")
+    parser.add_argument('--threshold', type=float, default=0.1)
     parser.add_argument('--path', type=str, help="Path to test folder")
     parser.add_argument('--store', action="store_true")
     parser.add_argument('--store_path', type=str, default=None, required=False)
@@ -168,5 +170,6 @@ if __name__ == '__main__':
     test_prompt(args.ckpt,
                 args.config,
                 args.path,
+                args.threshold,
                 args.store,
                 args.store_path)
