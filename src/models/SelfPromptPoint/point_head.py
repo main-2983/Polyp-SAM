@@ -88,6 +88,13 @@ class PointHead(nn.Module):
         priors = self.prior_generator.grid_points((H, W), stride=self.stride, device=device) # (H * W, 2)
         positive_priors = priors[positive_mask] # (positive_points, 2)
 
+        # If fails to pass the threshold
+        if positive_priors.shape[0] == 0:
+            # Sample topk
+            values, indices = torch.topk(flatten_pred, k=self.top_k)
+            positive_mask = torch.where(flatten_pred >= values[-1], True, False)
+            positive_priors = priors[positive_mask]
+
         point_labels = torch.ones((1, positive_priors.shape[0]), dtype=torch.long, device=device)
 
         return positive_priors.unsqueeze(0),\
