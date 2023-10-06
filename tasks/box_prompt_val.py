@@ -11,12 +11,13 @@ import torch
 
 from segment_anything import sam_model_registry, SamPredictor
 
-
 import sys
 package = os.path.join(os.path.dirname(sys.path[0]), "src")
 sys.path.append(os.path.dirname(package))
 from src.datasets.polyp.polyp_dataset import PolypDataset
 from src.metrics import get_scores, weighted_score
+from src.models.SelfPromptBox.box_prompt_SAM import PostProcess
+
 
 
 @torch.no_grad()
@@ -69,13 +70,17 @@ def test_prompt(checkpoint,
 
             predictor.set_torch_image(image[None], image_size)
 
-            point_prompt = model.point_model(model.preprocess(image[None]))
-            point_label = model.labels
+            outputs=model.forward_box(image[None])
+            postprocessors=PostProcess()
+            orig_target_sizes= torch.stack([torch.tensor([1024,1024]).to(image.device)])
+            results = postprocessors(outputs, orig_target_sizes)
+            # point_prompt = model.point_model(model.preprocess(image[None]))
+            # point_label = model.labels
 
             pred_masks, scores, logits = predictor.predict_torch(
-                point_coords=point_prompt,
-                point_labels=point_label,
-                boxes=None,
+                point_coords=None,
+                point_labels=None,
+                boxes=box_prompt,
                 multimask_output=False
             )
 

@@ -2,8 +2,6 @@ from glob import glob
 
 import torch
 from segmentation_models_pytorch.losses import DiceLoss, FocalLoss
-import sys
-sys.path.append('/home/trinh.quang.huy/polyp_for_sam/Polyp-SAM/segment-anything')
 from segment_anything.modeling import Sam
 from segment_anything import sam_model_registry
 from torch.nn import BCEWithLogitsLoss, MSELoss
@@ -44,8 +42,8 @@ class Config:
         #                                 freeze=[sam.image_encoder, sam.mask_decoder, sam.prompt_encoder])
 
         # Dataset and Dataloader
-        IMG_PATH = "/home/dang.hong.thanh/sun_sam_polyp/Dataset/TrainDataset/image/*"
-        MASK_PATH = "/home/dang.hong.thanh/sun_sam_polyp/Dataset/TrainDataset/mask/*"
+        IMG_PATH = "/home/dang.hong.thanh/datasets/polyp/Dataset/TrainDataset/image/*"
+        MASK_PATH = "/home/dang.hong.thanh/datasets/polyp/Dataset/TrainDataset/mask/*"
         self.IMAGE_SIZE = 1024
         self.EMBEDDING_PATHS = None
         self.dataset = PromptBaseDataset(
