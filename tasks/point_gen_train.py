@@ -93,7 +93,7 @@ def main():
                     flatten_pred, flatten_target, num = model.point_model.prepare_for_loss(pred, bbox)
 
                 with accelerator.autocast():
-                    loss = loss_fn(flatten_pred, flatten_target) / num
+                    loss = loss_fn(flatten_pred, flatten_target)
 
                 accelerator.backward(loss)
 
