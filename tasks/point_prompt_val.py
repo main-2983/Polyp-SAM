@@ -36,6 +36,7 @@ def test_prompt(checkpoint,
     device = model.device
 
     dataset_names = ['Kvasir', 'CVC-ClinicDB', 'CVC-ColonDB', 'CVC-300', 'ETIS-LaribPolypDB']
+    # dataset_names = ['Kvasir']
     table = []
     headers = ['Dataset', 'IoU', 'Dice', 'Recall', 'Precision']
     all_ious, all_dices, all_precisions, all_recalls = [], [], [], []
@@ -69,8 +70,11 @@ def test_prompt(checkpoint,
 
             predictor.set_torch_image(image[None], image_size)
 
-            point_prompt = model.point_model(model.preprocess(image[None]))
+            img_embedding = model.image_encoder(model.preprocess(image[None]))
+            
+            point_prompt = model.point_model(img_embedding)
             point_label = model.labels
+        
 
             pred_masks, scores, logits = predictor.predict_torch(
                 point_coords=point_prompt,
@@ -138,8 +142,11 @@ def parse_args():
 
     return args
 
+# python /mnt/nvme1n1/intern2023/nguyen.xuan.hoa-b/Polyp-SAM/tasks/point_prompt_val.py '/mnt/nvme1n1/intern2023/nguyen.xuan.hoa-b/Polyp-SAM/workdir/train/Self-Prompt-Point/2023-09-20_095355/ckpts/599.pt' configs.selfprompt-point --path '/mnt/nvme1n1/intern2023/nguyen.xuan.hoa-b/Polyp-SAM/data/TestDataset'
 
-if __name__ == '__main__':
+# python /mnt/nvme1n1/intern2023/nguyen.xuan.hoa-b/Polyp-SAM/tasks/point_prompt_val.py '/mnt/nvme1n1/intern2023/nguyen.xuan.hoa-b/Polyp-SAM/workdir/train/Self-Prompt-Point/2023-10-02_022633/ckpts/20.pt' configs.selfprompt-point --path '/mnt/nvme1n1/intern2023/nguyen.xuan.hoa-b/Polyp-SAM/data/TestDataset' --store
+
+if __name__ == '__main__': 
     args = parse_args()
     test_prompt(args.ckpt,
                 args.config,
