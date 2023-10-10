@@ -14,14 +14,14 @@ from src.losses import CombinedLoss
 from src.datasets.polyp.polyp_dataset import PolypDataset
 from src.datasets.polyp.Box_dataloader import PromptBaseDataset
 from src.models.SelfPromptBox.detection_head import DetectionHead
-
+from src.models.SelfPromptBox.position_encoding import build_position_encoding
 
 class Config:
     def __init__(self):
         # Model init
         PRETRAINED_PATH = "ckpts/sam_vit_b_01ec64.pth"
         MODEL_SIZE = "vit_b"
-
+        POSITIONAL_ENCODING='sine'
         # Model
         sam: Sam = sam_model_registry[MODEL_SIZE](PRETRAINED_PATH)
         self.box_decoder=DetectionHead(        
@@ -29,8 +29,10 @@ class Config:
                             nhead=8,
                             num_classes=1,
                             dim_feedforward=2048,
-                            num_queries=100,)
+                            num_queries=20,)
+        self.pos_encoder=build_position_encoding(pos_encoding=POSITIONAL_ENCODING,hidden_dim=256)
         self.model = SelfBoxPromptSam(self.box_decoder,
+                                    self.pos_encoder,
                                     sam.image_encoder,
                                     sam.mask_decoder,
                                     sam.prompt_encoder)

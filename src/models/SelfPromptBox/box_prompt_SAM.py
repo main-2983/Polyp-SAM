@@ -23,12 +23,14 @@ class SelfBoxPromptSam(IterativePolypSAM):
     def __init__(
         self,
         box_decoder:DetectionHead,
+        pos_encoder,
                  *args,
                  **kwargs):
         super(SelfBoxPromptSam, self).__init__(*args, **kwargs)
         """
         """
         self.box_decoder = box_decoder
+        self.pos_encoder=pos_encoder
     def forward_mask(
         self,
         input: List[Dict[str, Any]],
@@ -58,7 +60,8 @@ class SelfBoxPromptSam(IterativePolypSAM):
         image = input_img  # [B, C, 1024, 1024]
         # image = torch.stack([self.preprocess(img) for img in image], dim=0)
         image_embeddings = self.image_encoder(image)
-        out=self.box_decoder(image_embeddings.detach())
+        pos_embedding=self.pos_encoder(image_embeddings)
+        out=self.box_decoder(image_embeddings.detach(),pos=pos_embedding)
         # postprocessors = {'bbox': PostProcess()}
         # orig_target_sizes= torch.stack([torch.tensor(input.get('image_size')).to(image.device)])
         # results=postprocessors['bbox'](out, target_sizes=orig_target_sizes)

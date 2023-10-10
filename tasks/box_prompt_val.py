@@ -6,7 +6,8 @@ from tqdm import tqdm
 from tabulate import tabulate
 import numpy as np
 import matplotlib.pyplot as plt
-
+from matplotlib.patches import Rectangle
+from PIL import Image
 import torch
 
 from segment_anything import sam_model_registry, SamPredictor
@@ -17,6 +18,7 @@ sys.path.append(os.path.dirname(package))
 from src.datasets.polyp.polyp_dataset import PolypDataset
 from src.metrics import get_scores, weighted_score
 from src.models.SelfPromptBox.box_prompt_SAM import PostProcess
+from src.datasets.polyp.Box_dataloader import PromptBaseDataset
 
 
 
@@ -53,10 +55,12 @@ def test_prompt(checkpoint,
         test_masks = glob('{}/masks/*'.format(data_path))
         test_masks.sort()
 
-        test_dataset = PolypDataset(
+        # test_dataset = PolypDataset(
+        #     test_images, test_masks, image_size=config.IMAGE_SIZE
+        # )
+        test_dataset = PromptBaseDataset(
             test_images, test_masks, image_size=config.IMAGE_SIZE
         )
-
         gts = []
         prs = []
         for i in tqdm(range(len(test_dataset)), desc=dataset_name):
@@ -64,8 +68,9 @@ def test_prompt(checkpoint,
             name = os.path.basename(image_path)
             name = os.path.splitext(name)[0]
             sample = test_dataset[i]
-            image = sample["image"].to(device)
-            gt_mask = sample["mask"].to(device)
+            image, mask, point_prompts, point_labels, box_prompts, task_prompts, box_labels=sample
+            image = image.to(device)
+            gt_mask = mask.to(device)
             image_size = (test_dataset.image_size, test_dataset.image_size)
 
             predictor.set_torch_image(image[None], image_size)
@@ -76,11 +81,30 @@ def test_prompt(checkpoint,
             results = postprocessors(outputs, orig_target_sizes)
             # point_prompt = model.point_model(model.preprocess(image[None]))
             # point_label = model.labels
-
+            thresh_hold=0.5
+            valid_mask=results[0]['scores']>thresh_hold
+            valid_scores=results[0]['scores'][valid_mask]
+            valid_boxes=results[0]['boxes'][valid_mask]
+            num_pred_boxes=torch.sum(valid_mask).cpu().item()
+            img=Image.open(image_path,mode='r')
+            img=img.resize((1024,1024),Image.BILINEAR)
+            plt.gca().invert_yaxis()
+            fig, ax = plt.subplots() 
+            ax.imshow(img) # plot image
+            for i in range(num_pred_boxes):
+                score=valid_scores[i].cpu().item()
+                x1,y1,x2,y2=valid_boxes[i].cpu().numpy()
+                rect = Rectangle((x1,y1),(x2-x1), (y2-y1), linewidth=2, edgecolor='r', facecolor='none')
+                ax.add_patch(rect)
+            for i in range(box_prompts.size(0)):
+                x1,y1,x2,y2=box_prompts[i].cpu().numpy()
+                rect = Rectangle((x1,y1),(x2-x1), (y2-y1), linewidth=2, edgecolor='g', facecolor='none')
+                ax.add_patch(rect)
+            plt.savefig('save_figs2/'+name+"_box.png",)
             pred_masks, scores, logits = predictor.predict_torch(
                 point_coords=None,
                 point_labels=None,
-                boxes=box_prompt,
+                boxes=None,
                 multimask_output=False
             )
 
