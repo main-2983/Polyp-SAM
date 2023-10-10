@@ -80,7 +80,7 @@ def test_prompt(checkpoint,
             pred_masks, scores, logits = predictor.predict_torch(
                 point_coords=None,
                 point_labels=None,
-                boxes=box_prompt,
+                boxes=None,
                 multimask_output=False
             )
 

@@ -29,7 +29,7 @@ class Config:
                             nhead=8,
                             num_classes=1,
                             dim_feedforward=2048,
-                            num_queries=100,)
+                            num_queries=10,)
         self.model = SelfBoxPromptSam(self.box_decoder,
                                     sam.image_encoder,
                                     sam.mask_decoder,
