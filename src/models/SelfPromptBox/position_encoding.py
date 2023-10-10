@@ -25,9 +25,12 @@ class PositionEmbeddingSine(nn.Module):
             scale = 2 * math.pi
         self.scale = scale
 
-    def forward(self, tensor_list: NestedTensor):
-        x = tensor_list.tensors
-        mask = tensor_list.mask
+    # def forward(self, tensor_list: NestedTensor):
+    def forward(self, tensor):
+        # x = tensor_list.tensors
+        # mask = tensor_list.mask
+        bs,hidden_dim,w,h=tensor.size()
+        mask=torch.zeros((bs,w,h),device=tensor.device,dtype=torch.bool)
         assert mask is not None
         not_mask = ~mask
         y_embed = not_mask.cumsum(1, dtype=torch.float32)
@@ -37,7 +40,7 @@ class PositionEmbeddingSine(nn.Module):
             y_embed = y_embed / (y_embed[:, -1:, :] + eps) * self.scale
             x_embed = x_embed / (x_embed[:, :, -1:] + eps) * self.scale
 
-        dim_t = torch.arange(self.num_pos_feats, dtype=torch.float32, device=x.device)
+        dim_t = torch.arange(self.num_pos_feats, dtype=torch.float32, device=tensor.device)
         dim_t = self.temperature ** (2 * (dim_t // 2) / self.num_pos_feats)
 
         pos_x = x_embed[:, :, :, None] / dim_t
@@ -76,7 +79,7 @@ class PositionEmbeddingLearned(nn.Module):
         return pos
 
 
-def build_position_encoding(pos_encoding,hidden_dim):
+def build_position_encoding(position_embedding,hidden_dim):
     N_steps = hidden_dim // 2
     if position_embedding in ('v2', 'sine'):
         # TODO find a better way of exposing other arguments

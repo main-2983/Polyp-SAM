@@ -30,6 +30,7 @@ class Config:
                             num_classes=1,
                             dim_feedforward=2048,
                             num_queries=10,)
+        self.pos_encoder=build_position_encoding(POSITIONAL_ENCODING,hidden_dim=256)
         self.model = SelfBoxPromptSam(self.box_decoder,
                                     self.pos_encoder,
                                     sam.image_encoder,

@@ -35,7 +35,8 @@ class DetectionHead(nn.Module):
         self.bbox_embed = MLP(self.hidden_dim, self.hidden_dim, 4, 3)
         self.query_embed=nn.Embedding(self.num_queries, self.hidden_dim)
     def forward(self,
-        image_embeddings: torch.Tensor):
+        image_embeddings: torch.Tensor,
+        pos:torch.Tensor):
 
         bs,c,w,h=image_embeddings.shape
         query_embed= self.query_embed.weight.unsqueeze(1).repeat(1, bs, 1)
@@ -43,7 +44,7 @@ class DetectionHead(nn.Module):
         memory=image_embeddings.flatten(2).permute(2,0,1) # (n_tokens,bs,hidden_dim)
         hs=self.box_decoder(tgt,memory,
                             memory_key_padding_mask=None,
-                            pos=None,
+                            pos=pos,
                             query_pos=query_embed)
                             
         hs=hs.transpose(1,2) # n_decoders,bs,n_query,hidden_dim
