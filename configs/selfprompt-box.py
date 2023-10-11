@@ -96,5 +96,5 @@ class Config:
         # Save
         self.SAVE_PATH = "workdir/train/Self-Prompt-Box"
         self.EPOCH_TO_SAVE = 1
-        self.SAVE_FREQUENCY = 10
+        self.SAVE_FREQUENCY = 1
         self.RATE = 0.5

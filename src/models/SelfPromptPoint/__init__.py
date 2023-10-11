@@ -1,2 +1,2 @@
 from .self_point_prompt import SelfPointPromptSAM
-from .point_gen_module import PointGenModule
+from .point_gen_module import PointGenModulev3, PointGenModuleWithViT

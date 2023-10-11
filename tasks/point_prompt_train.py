@@ -2,7 +2,7 @@ import argparse
 import os
 import time
 import datetime
-import pandas as pd
+# import pandas as pd
 import importlib  # for import module
 import shutil  # for copy files
 from tqdm import tqdm
@@ -115,6 +115,7 @@ def main():
         # Saving
         accelerator.wait_for_everyone()
         model_state_dict = accelerator.get_state_dict(model)
+        print(f"Checkpoint save to {save_folder}")
         accelerator.save(model_state_dict, f"{save_folder}/ckpts/{epoch}.pt")
 
     end_time = time.time()

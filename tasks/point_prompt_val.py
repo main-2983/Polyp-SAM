@@ -6,7 +6,7 @@ from tqdm import tqdm
 from tabulate import tabulate
 import numpy as np
 import matplotlib.pyplot as plt
-
+import cv2
 import torch
 
 from segment_anything import sam_model_registry, SamPredictor
@@ -69,9 +69,10 @@ def test_prompt(checkpoint,
 
             predictor.set_torch_image(image[None], image_size)
 
-            point_prompt = model.point_model(model.preprocess(image[None]))
+            embedding_img = predictor.model.image_encoder(model.preprocess(image[None]))
+            point_prompt = model.point_model(embedding_img)
+            feature_map = model.point_model.test(embedding_img)
             point_label = model.labels
-
             pred_masks, scores, logits = predictor.predict_torch(
                 point_coords=point_prompt,
                 point_labels=point_label,
@@ -84,13 +85,16 @@ def test_prompt(checkpoint,
             for i in range(1, len(pred_masks)):
                 final_mask = np.logical_or(final_mask, pred_masks[i])
             gt_mask = gt_mask[0].cpu().numpy()
-
+            feature_map = feature_map[0][0].cpu().numpy()
+            
+            feature_map = cv2.resize(feature_map, (1024, 1024))
+            points = point_prompt[0][0].cpu().numpy()
             gts.append(gt_mask)
             prs.append(final_mask)
-
             if (store):
                 plt.figure(figsize=(10, 10))
-                plt.imshow(final_mask)
+                plt.scatter(points[0], points[1], s = 200, c = "#FF0000")
+                plt.imshow(feature_map)
                 plt.axis("off")
                 plt.savefig(f"{store_path}/Self-Prompt-Point/{dataset_name}/{name}.png")
                 plt.close()
@@ -127,22 +131,23 @@ def test_prompt(checkpoint,
             f.write(tabulate(table, headers=headers, tablefmt="fancy_grid"))
 
 
-def parse_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('ckpt', type=str, help="Model checkpoint")
-    parser.add_argument('config', type=str, help="Model config")
-    parser.add_argument('--path', type=str, help="Path to test folder")
-    parser.add_argument('--store', action="store_true")
-    parser.add_argument('--store_path', type=str, default=None, required=False)
-    args = parser.parse_args()
+# def parse_args():
+#     parser = argparse.ArgumentParser()
+#     parser.add_argument('ckpt', type=str, help="Model checkpoint")
+#     parser.add_argument('config', type=str, help="Model config")
+#     parser.add_argument('--path', type=str, help="Path to test folder")
+#     parser.add_argument('--store', action="store_true")
+#     parser.add_argument('--store_path', type=str, default=None, required=False)
+#     args = parser.parse_args()
 
-    return args
+#     return args
 
 
 if __name__ == '__main__':
-    args = parse_args()
-    test_prompt(args.ckpt,
-                args.config,
-                args.path,
-                args.store,
-                args.store_path)
+    # args = parse_args()
+    test_prompt("/home/trinh.quang.huy/polyp_for_sam/Polyp-SAM/workdir/train/Self-Prompt-Box/2023-10-06_030112/ckpts/80.pt",
+                "configs.selfprompt-point",
+                "/home/trinh.quang.huy/sun-polyp/Dataset/TestDataset",
+                False)
+
+

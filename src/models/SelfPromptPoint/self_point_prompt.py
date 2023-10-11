@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .point_gen_module import PointGenModule
+from .point_gen_module import PointGenModuleWithViT
 
 from typing import List, Tuple, Dict, Any
 
@@ -14,7 +14,7 @@ class SelfPointPromptSAM(nn.Module):
     image_format: str = "RGB"
     def __init__(
             self,
-            point_model: PointGenModule,
+            point_model: PointGenModuleWithViT,
             image_encoder: ImageEncoderViT,
             mask_decoder: MaskDecoder,
             prompt_encoder: PromptEncoder,
@@ -28,7 +28,6 @@ class SelfPointPromptSAM(nn.Module):
         self.image_encoder = image_encoder
         self.mask_decoder = mask_decoder
         self.prompt_encoder = prompt_encoder
-
         num_points = self.point_model.num_points
         self.register_buffer('labels', torch.zeros((1, num_points), dtype=torch.long), False)
         self.labels[0, :num_points // 2] = 1
@@ -64,8 +63,9 @@ class SelfPointPromptSAM(nn.Module):
         image_embedding = input.get("image_embedding", None)  # [1, 256, 64, 64]
         if image_embedding is None:
             image_embedding = self.image_encoder(image)
-
-        points = self.point_model(image)
+        # print(image_embedding.shape)
+        # print(image.shape)
+        points = self.point_model(image_embedding)
 
         point_prompt = (points, self.labels)
 
