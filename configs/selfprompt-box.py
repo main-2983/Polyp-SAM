@@ -2,8 +2,6 @@ from glob import glob
 
 import torch
 from segmentation_models_pytorch.losses import DiceLoss, FocalLoss
-import sys
-sys.path.append('/home/trinh.quang.huy/polyp_for_sam/Polyp-SAM/segment-anything')
 from segment_anything.modeling import Sam
 from segment_anything import sam_model_registry
 from torch.nn import BCEWithLogitsLoss, MSELoss
@@ -16,14 +14,14 @@ from src.losses import CombinedLoss
 from src.datasets.polyp.polyp_dataset import PolypDataset
 from src.datasets.polyp.Box_dataloader import PromptBaseDataset
 from src.models.SelfPromptBox.detection_head import DetectionHead
-
+from src.models.SelfPromptBox.position_encoding import build_position_encoding
 
 class Config:
     def __init__(self):
         # Model init
         PRETRAINED_PATH = "ckpts/sam_vit_b_01ec64.pth"
         MODEL_SIZE = "vit_b"
-
+        POSITIONAL_ENCODING='sine'
         # Model
         sam: Sam = sam_model_registry[MODEL_SIZE](PRETRAINED_PATH)
         self.box_decoder=DetectionHead(        
@@ -31,8 +29,10 @@ class Config:
                             nhead=8,
                             num_classes=1,
                             dim_feedforward=2048,
-                            num_queries=100,)
+                            num_queries=10,)
+        self.pos_encoder=build_position_encoding(POSITIONAL_ENCODING,hidden_dim=256)
         self.model = SelfBoxPromptSam(self.box_decoder,
+                                    self.pos_encoder,
                                     sam.image_encoder,
                                     sam.mask_decoder,
                                     sam.prompt_encoder)
@@ -44,8 +44,8 @@ class Config:
         #                                 freeze=[sam.image_encoder, sam.mask_decoder, sam.prompt_encoder])
 
         # Dataset and Dataloader
-        IMG_PATH = "/home/trinh.quang.huy/sun-polyp/Dataset/TrainDataset/image/*"
-        MASK_PATH = "/home/trinh.quang.huy/sun-polyp/Dataset/TrainDataset/mask/*"
+        IMG_PATH = "/home/dang.hong.thanh/datasets/polyp/Dataset/TrainDataset/image/*"
+        MASK_PATH = "/home/dang.hong.thanh/datasets/polyp/Dataset/TrainDataset/mask/*"
         self.IMAGE_SIZE = 1024
         self.EMBEDDING_PATHS = None
         self.dataset = PromptBaseDataset(
@@ -98,3 +98,5 @@ class Config:
         self.EPOCH_TO_SAVE = 1
         self.SAVE_FREQUENCY = 1
         self.RATE = 0.5
+
+        self.USE_BOX_PROMPT=True

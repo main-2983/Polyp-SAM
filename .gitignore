@@ -2,3 +2,5 @@
 ckpts/
 __pycache__/
 workdir/
+*.png
+*.pt
