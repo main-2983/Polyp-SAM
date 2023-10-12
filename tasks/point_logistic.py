@@ -205,7 +205,7 @@ def parse_args():
 
 if __name__ == '__main__':
     args = parse_args()
-    if args.mode == train:
+    if args.mode == "train":
         model = train(args)
         val(args, model)
     else:
