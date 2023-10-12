@@ -16,6 +16,9 @@ from sklearn.linear_model import LogisticRegression
 from segment_anything.modeling import Sam
 from segment_anything import build_sam_vit_b, SamPredictor
 
+import sys
+package = os.path.join(os.path.dirname(sys.path[0]), "src")
+sys.path.append(os.path.dirname(package))
 from src.plot_utils import show_points, show_mask
 from src.metrics import get_scores, weighted_score
 
