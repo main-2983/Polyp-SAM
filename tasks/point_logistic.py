@@ -79,7 +79,7 @@ def train(args):
     model.fit(embeddings, labels)
     print("Finish training")
 
-    pickle.dump(model, open("regression.pkl", 'rb'))
+    pickle.dump(model, open("regression.pkl", 'wb'))
 
     return model
 
