@@ -189,7 +189,7 @@ def val(args, model = None):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('sam-ckpt', type=str)
+    parser.add_argument('sam_ckpt', type=str)
     parser.add_argument('--mode', type=str, default='train')
     parser.add_argument('--classifier', type=str, required=False)
     parser.add_argument('--test-folder', type=str, required=False)
