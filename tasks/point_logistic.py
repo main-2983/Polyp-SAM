@@ -61,6 +61,7 @@ def train(args):
     assert len(image_paths) == len(mask_paths)
 
     embeddings, labels = [], []
+    print("Extracting embeddings...")
     with torch.no_grad():
         for i in tqdm(range(len(image_paths))):
             image = rgb_loader(args.image_size, image_paths[i])
@@ -74,7 +75,9 @@ def train(args):
     labels = np.concatenate(labels)
 
     model = LogisticRegression(max_iter=1000)
+    print("Training Logistic Regression...")
     model.fit(embeddings, labels)
+    print("Finish training")
 
     pickle.dump(model, open("regression.pkl", 'rb'))
 
