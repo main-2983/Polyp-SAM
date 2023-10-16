@@ -7,7 +7,7 @@ from segment_anything import sam_model_registry
 from torch.nn import BCEWithLogitsLoss, MSELoss
 
 from src.models.SelfPromptBox.box_prompt_SAM import SelfBoxPromptSam
-from src.models.SelfPromptPoint import SelfPointPromptSAM, PointGenModule
+# from src.models.SelfPromptPoint import SelfPointPromptSAM, PointGenModule
 
 from src.scheduler import LinearWarmupCosineAnnealingLR
 from src.losses import CombinedLoss
@@ -36,7 +36,7 @@ class Config:
                                     sam.image_encoder,
                                     sam.mask_decoder,
                                     sam.prompt_encoder)
-        point_gen = PointGenModule()
+        # point_gen = PointGenModule()
         # self.model= SelfPointPromptSAM(point_gen,
         #                                 sam.image_encoder,
         #                                 sam.mask_decoder,
