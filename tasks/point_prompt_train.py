@@ -2,7 +2,6 @@ import argparse
 import os
 import time
 import datetime
-import pandas as pd
 import torch
 from segmentation_models_pytorch.losses import DiceLoss, FocalLoss
 import importlib  # for import module
@@ -79,8 +78,8 @@ def main():
     )
 
     # Loss
-    # loss_fn = config.LOSS_FN
-    loss_fn = MLoss()
+    loss_fn = config.LOSS_FN
+    # loss_fn = MLoss()
 
     # Optimizer
     optimizer = config.OPTIMIZER(model.parameters(), **config.OPTIMIZER_KWARGS)
@@ -109,16 +108,15 @@ def main():
                 points = batch['points']
                 
                 _input = {
-                    'image_embedding': image_embedding.squeeze(0),
                     'image': image,
                     'image_size': (config.IMAGE_SIZE, config.IMAGE_SIZE)
                 }
 
-                pred_mask, pred_point = model(_input)
-                # pred = model(_input)
+                # pred_mask, pred_point = model(_input)
+                pred = model(_input)
 
-                # loss = loss_fn(pred, mask)
-                loss, dis_loss, dice_loss = loss_fn(pred_point, points, pred_mask, mask)
+                loss = loss_fn(pred, mask)
+                # loss, dis_loss, dice_loss = loss_fn(pred_point, points, pred_mask, mask)
 
                 accelerator.backward(loss)
 
@@ -126,16 +124,16 @@ def main():
                 optimizer.zero_grad()
 
                 epoch_losses.append(loss.item())
-                dis_loss_epoch.append(dis_loss.item())
-                dice_loss_epch.append(dice_loss.item())
+                # dis_loss_epoch.append(dis_loss.item())
+                # dice_loss_epch.append(dice_loss.item())
                 
 
         # After epoch
         scheduler.step()
         epoch_loss = sum(epoch_losses) / len(epoch_losses)
-        dis_loss_epoch = sum(dis_loss_epoch) / len(dis_loss_epoch)
-        dice_loss_epch = sum(dice_loss_epch) / len(dice_loss_epch)
-        logger.info(f"Epoch: {epoch} \t Loss: {epoch_loss} \t dis_loss: {dis_loss} \t dice_loss: {dice_loss}", main_process_only=True)
+        # dis_loss_epoch = sum(dis_loss_epoch) / len(dis_loss_epoch)
+        # dice_loss_epch = sum(dice_loss_epch) / len(dice_loss_epch)
+        logger.info(f"Epoch: {epoch} \t Loss: {epoch_loss}", main_process_only=True)
         if accelerator.is_main_process:
             with open(f"{save_folder}/exp.log", 'a') as f:
                 f.write(f"Epoch: {epoch} \t Loss: {epoch_loss} \n")

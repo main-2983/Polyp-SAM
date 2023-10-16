@@ -15,7 +15,7 @@ from src.datasets.polyp.polyp_dataset import PolypDataset
 class Config:
     def __init__(self):
         # Model init
-        PRETRAINED_PATH = "/mnt/nvme1n1/intern2023/nguyen.xuan.hoa-b/Polyp-SAM/data/sam_vit_b_01ec64.pth"
+        PRETRAINED_PATH = "/home/trinh.quang.huy/polyp_for_sam/Polyp-SAM/ckpts/sam_vit_b_01ec64.pth"
         MODEL_SIZE = "vit_b"
 
         # Model
@@ -28,14 +28,13 @@ class Config:
                                         freeze=[sam.image_encoder, sam.mask_decoder, sam.prompt_encoder])
 
         # Dataset and Dataloader
-        IMG_PATH = "/mnt/nvme1n1/intern2023/nguyen.xuan.hoa-b/Polyp-SAM/data/TrainDataset/images/*"
-        MASK_PATH = "/mnt/nvme1n1/intern2023/nguyen.xuan.hoa-b/Polyp-SAM/data/TrainDataset/masks/*"
+        IMG_PATH = "/home/trinh.quang.huy/sun_polyp_dataset/Dataset/TrainDataset/image/*"
+        MASK_PATH = "/home/trinh.quang.huy/sun_polyp_dataset/Dataset/TrainDataset/mask/*"
         self.IMAGE_SIZE = 1024
-        self.EMBEDDING_PATHS = "/mnt/nvme1n1/intern2023/nguyen.xuan.hoa-b/Polyp-SAM/data/TrainDataset/embeddings/*"
+        self.EMBEDDING_PATHS = None
         self.dataset = PolypDataset(
             glob(IMG_PATH),
             glob(MASK_PATH),
-            glob(self.EMBEDDING_PATHS),
             image_size=self.IMAGE_SIZE
         )
 

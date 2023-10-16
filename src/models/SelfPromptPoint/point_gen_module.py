@@ -3,6 +3,7 @@ import torch.nn as nn
 
 from segment_anything.modeling.common import LayerNorm2d
 
+
 class PointGenModule(nn.Module):
     def __init__(
             self,
@@ -34,7 +35,7 @@ class PointGenModule(nn.Module):
         self.prelu2 = nn.PReLU()
         self.prelu3 = nn.PReLU()
         self.sigmoid = nn.Sigmoid()
-        
+
     def test(self, x: torch.Tensor) -> torch.Tensor:
         x = self.conv1(x)
         x = self.prelu1(x)
@@ -43,7 +44,7 @@ class PointGenModule(nn.Module):
         x = self.conv3(x)
         x = self.prelu3(x)
         x = self.conv4(x)
-        
+
         return x[:, 1, :, :]
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -66,7 +67,7 @@ class PointGenModule(nn.Module):
         x = self.sigmoid(x)
 
         x = x.view(-1, self.num_points, 2)
-        
+
         return x
 
         # return x * self.image_size
@@ -151,7 +152,7 @@ class PointGenModulev3(nn.Module):
         x = self.conv3(x)
         x = self.prelu3(x)
         x = self.conv4(x)
-        
+
         x = x.squeeze(1)
         coor = self.soft_argmax2d(x)
         coor = coor.unsqueeze(1)
@@ -164,11 +165,11 @@ class PointGenModulev3(nn.Module):
         # x = self.sigmoid(x)
 
         # x = x.view(-1, self.num_points, 2)
-        
+
         return coor * (self.image_size - 1)
 
         # return x * self.image_size
-        
+
     def test(self, x: torch.Tensor) -> torch.Tensor:
         x = self.conv1(x)
         x = self.prelu1(x)
@@ -177,10 +178,10 @@ class PointGenModulev3(nn.Module):
         x = self.conv3(x)
         x = self.prelu3(x)
         x = self.conv4(x)
-        
+
         return x
-        
-    def soft_argmax2d(self, input: torch.Tensor, beta = 64) -> torch.Tensor:
+
+    def soft_argmax2d(self, input: torch.Tensor, beta=64) -> torch.Tensor:
         """
         Compute the soft argmax 2D of a given input heatmap.
         Arguments
@@ -194,14 +195,17 @@ class PointGenModulev3(nn.Module):
         """
 
         # Compute softmax over the input heatmap
-        softmax_heatmap = nn.functional.softmax(input.reshape(input.shape[0], -1) * beta, dim=1)
+        softmax_heatmap = nn.functional.softmax(
+            input.reshape(input.shape[0], -1) * beta, dim=1)
         softmax_heatmap = softmax_heatmap.reshape(input.shape)
 
         # Create coordinates indices grid
-        x_idx = torch.arange(input.size(2), dtype=input.dtype, device=input.device)
-        y_idx = torch.arange(input.size(1), dtype=input.dtype, device=input.device)
+        x_idx = torch.arange(input.size(
+            2), dtype=input.dtype, device=input.device)
+        y_idx = torch.arange(input.size(
+            1), dtype=input.dtype, device=input.device)
         x_idx, y_idx = torch.meshgrid(x_idx, y_idx, indexing='xy')
-        
+
         # Compute the expected x and y coordinates
         expected_y = torch.sum(y_idx * softmax_heatmap, dim=(1, 2))
         expected_x = torch.sum(x_idx * softmax_heatmap, dim=(1, 2))
@@ -216,7 +220,7 @@ class PointGenModulev3(nn.Module):
         n_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
 
         return super(PointGenModulev3, self).__str__() + f'\nTrainable parameters: {n_params}'
-    
+
 
 class PointGenModulev2(nn.Module):
     def __init__(self,
@@ -249,11 +253,12 @@ class PointGenModulev2(nn.Module):
 
         return x * self.image_size
 
+
 class PointGenModuleWViT(nn.Module):
     def __init__(
             self,
             image_size: int = 1024,
-            num_points: int = 1
+            num_points: int = 2
     ) -> None:
         super(PointGenModuleWViT, self).__init__()
 
@@ -267,7 +272,7 @@ class PointGenModuleWViT(nn.Module):
         self.conv1 = nn.Conv2d(256, 128, kernel_size=3, stride=1, padding=1)
         self.conv2 = nn.Conv2d(128, 64, kernel_size=3, stride=1, padding=1)
         self.conv3 = nn.Conv2d(64, 32, kernel_size=3, stride=1, padding=1)
-        self.conv4 = nn.Conv2d(32, 1, kernel_size=3, stride=1, padding=1)
+        self.conv4 = nn.Conv2d(32, 2, kernel_size=3, stride=1, padding=1)
         # # Global Average Pooling (GAP)
         # self.global_avg_pool = nn.AdaptiveAvgPool2d(1)
 
@@ -283,6 +288,7 @@ class PointGenModuleWViT(nn.Module):
         self.norm1 = nn.BatchNorm2d(128)
         self.norm2 = nn.BatchNorm2d(64)
         self.norm3 = nn.BatchNorm2d(32)
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # Input: (batch_size, 3, 256, 256)
         # Output: (batch_size, 10, 2)
@@ -297,10 +303,12 @@ class PointGenModuleWViT(nn.Module):
         x = self.norm3(x)
         x = self.prelu3(x)
         x = self.conv4(x)
-        
-        x = x.squeeze(1)
+
+        # x = x.squeeze(1)
+        # coor = self.soft_argmax2d(x)
+        # coor = coor.unsqueeze(1)
+        # print(coor.shape)
         coor = self.soft_argmax2d(x)
-        coor = coor.unsqueeze(1)
 
         # x = self.global_avg_pool(x)
 
@@ -310,11 +318,11 @@ class PointGenModuleWViT(nn.Module):
         # x = self.sigmoid(x)
 
         # x = x.view(-1, self.num_points, 2)
-        
+
         return coor * (self.image_size - 1)
 
         # return x * self.image_size
-        
+
     def test(self, x: torch.Tensor) -> torch.Tensor:
         x = self.conv1(x)
         x = self.prelu1(x)
@@ -323,47 +331,77 @@ class PointGenModuleWViT(nn.Module):
         x = self.conv3(x)
         x = self.prelu3(x)
         x = self.conv4(x)
-        
+
         return x
-        
-    def soft_argmax2d(self, input: torch.Tensor, beta = 64) -> torch.Tensor:
+
+    # def soft_argmax2d(self, input: torch.Tensor, beta = 64) -> torch.Tensor:
+    #     """
+    #     Compute the soft argmax 2D of a given input heatmap.
+    #     Arguments
+    #     ---------
+    #     input : torch.Tensor
+    #         the given input heatmap with shape :math:`(B, H, W)`.
+    #     Returns
+    #     -------
+    #     torch.Tensor
+    #         the soft argmax heatmap with shape :math:`(B, 2)`.
+    #     """
+
+    #     # Compute softmax over the input heatmap
+    #     softmax_heatmap = nn.functional.softmax(input.reshape(input.shape[0], -1) * beta, dim=1)
+    #     softmax_heatmap = softmax_heatmap.reshape(input.shape)
+
+    #     # Create coordinates indices grid
+    #     x_idx = torch.arange(input.size(2), dtype=input.dtype, device=input.device)
+    #     y_idx = torch.arange(input.size(1), dtype=input.dtype, device=input.device)
+    #     x_idx, y_idx = torch.meshgrid(x_idx, y_idx, indexing='xy')
+
+    #     # Compute the expected x and y coordinates
+    #     expected_y = torch.sum(y_idx * softmax_heatmap, dim=(1, 2))
+    #     expected_x = torch.sum(x_idx * softmax_heatmap, dim=(1, 2))
+
+    #     # Normalize the coordinates from [0, 1]
+    #     expected_x /= float(input.size(2) - 1)
+    #     expected_y /= float(input.size(1) - 1)
+
+    #     return torch.stack([expected_x, expected_y], dim=1)
+
+    def soft_argmax2d(self, feature_map: torch.Tensor, beta=64) -> torch.Tensor:
         """
-        Compute the soft argmax 2D of a given input heatmap.
-        Arguments
-        ---------
-        input : torch.Tensor
-            the given input heatmap with shape :math:`(B, H, W)`.
-        Returns
-        -------
-        torch.Tensor
-            the soft argmax heatmap with shape :math:`(B, 2)`.
+            Computes the 2D soft-argmax of a given feature map.
+            Parameters:
+            feature_map (torch.Tensor): Input tensor of shape (batch_size, channel, height, width)
+            beta (int): Parameter that can be used to change the sharpness of the probability distribution. Default: 10
+            Returns:
+            torch.Tensor: Tensor of shape (batch_size, channel, 2) representing the normalized coordinates.
         """
-
-        # Compute softmax over the input heatmap
-        softmax_heatmap = nn.functional.softmax(input.reshape(input.shape[0], -1) * beta, dim=1)
-        softmax_heatmap = softmax_heatmap.reshape(input.shape)
-
-        # Create coordinates indices grid
-        x_idx = torch.arange(input.size(2), dtype=input.dtype, device=input.device)
-        y_idx = torch.arange(input.size(1), dtype=input.dtype, device=input.device)
-        x_idx, y_idx = torch.meshgrid(x_idx, y_idx, indexing='xy')
-        
-        # Compute the expected x and y coordinates
-        expected_y = torch.sum(y_idx * softmax_heatmap, dim=(1, 2))
-        expected_x = torch.sum(x_idx * softmax_heatmap, dim=(1, 2))
-
-        # Normalize the coordinates from [0, 1]
-        expected_x /= float(input.size(2) - 1)
-        expected_y /= float(input.size(1) - 1)
-
-        return torch.stack([expected_x, expected_y], dim=1)
+        assert feature_map.dim(
+        ) == 4, "Input tensor should be of shape (batch_size, channel, height, width)"
+        # Compute softmax over the spatial dimensions of the input heatmap
+        softmax_heatmap = nn.functional.softmax(feature_map.view(*feature_map.shape[:-2], -1) * beta, dim=-1).view_as(feature_map)
+        # Create coordinates grid
+        grid_x = torch.linspace(0, feature_map.size(
+            3)-1, feature_map.size(3), device=feature_map.device, dtype=feature_map.dtype)
+        grid_y = torch.linspace(0, feature_map.size(
+            2)-1, feature_map.size(2), device=feature_map.device, dtype=feature_map.dtype)
+        grid_x, grid_y = torch.meshgrid(grid_x, grid_y, indexing='xy')
+        grid_x = grid_x.unsqueeze(0).unsqueeze(
+            0)  # Add batch and channel dimensions
+        grid_y = grid_y.unsqueeze(0).unsqueeze(
+            0)  # Add batch and channel dimensions
+        # Compute expected coordinates
+        expected_x = torch.sum(grid_x * softmax_heatmap, dim=(2, 3))
+        expected_y = torch.sum(grid_y * softmax_heatmap, dim=(2, 3))
+        # Stack and normalize the coordinates
+        coordinates = torch.stack([expected_x, expected_y], dim=2)
+        coordinates[..., 0] /= (feature_map.size(3) - 1)
+        coordinates[..., 1] /= (feature_map.size(2) - 1)
+        return coordinates
 
     def __str__(self) -> str:
         n_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
 
-        return super(PointGenModuleWViT, self).__str__() + f'\nTrainable parameters: {n_params}'    
-
-
+        return super(PointGenModuleWViT, self).__str__() + f'\nTrainable parameters: {n_params}'
 
 
 # class HourglassBlock(nn.Module):
@@ -422,7 +460,7 @@ class PointGenModuleWViT(nn.Module):
 #         coor = self.soft_argmax2d(out)
 #         coor = coor.unsqueeze(1)
 #         return coor * 1023
-    
+
 #     def soft_argmax2d(self, input: torch.Tensor) -> torch.Tensor:
 #         """
 #         Compute the soft argmax 2D of a given input heatmap.
@@ -444,7 +482,7 @@ class PointGenModuleWViT(nn.Module):
 #         x_idx = torch.arange(input.size(2), dtype=input.dtype, device=input.device)
 #         y_idx = torch.arange(input.size(1), dtype=input.dtype, device=input.device)
 #         x_idx, y_idx = torch.meshgrid(x_idx, y_idx, indexing='xy')
-        
+
 #         # Compute the expected x and y coordinates
 #         expected_y = torch.sum(y_idx * softmax_heatmap, dim=(1, 2))
 #         expected_x = torch.sum(x_idx * softmax_heatmap, dim=(1, 2))
@@ -454,15 +492,15 @@ class PointGenModuleWViT(nn.Module):
 #         expected_y /= float(input.size(1) - 1)
 
 #         return torch.stack([expected_x, expected_y], dim=1)
-    
+
 #     def __str__(self):
 #         n_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
 
-#         return super(HourglassNet, self).__str__() + f'\nTrainable parameters: {n_params}'    
-    
+#         return super(HourglassNet, self).__str__() + f'\nTrainable parameters: {n_params}'
+
 # if __name__ == "__main__":
 #     model = HourglassNet()
 #     image = torch.rand(1, 3, 1024, 1024)
 #     output = model(image)
-    
+
 #     print(output)
