@@ -110,6 +110,9 @@ def test_prompt(checkpoint,
                 rect = Rectangle((x1,y1),(x2-x1), (y2-y1), linewidth=2, edgecolor='g', facecolor='none')
                 ax.add_patch(rect)
             # plt.savefig('save_figs2/'+name+"_box.png",)
+            if not os.path.isdir('save_figs2/'+dataset_name):
+                os.mkdir('save_figs2/'+dataset_name)
+            plt.savefig('save_figs2/'+dataset_name+'/'+name+"_box.png",)
             pred_masks, scores, logits = predictor.predict_torch(
                 point_coords=None,
                 point_labels=None,
