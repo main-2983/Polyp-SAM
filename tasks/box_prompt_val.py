@@ -9,13 +9,13 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 from PIL import Image
 import torch
-
 from segment_anything import sam_model_registry, SamPredictor
 
 import sys
 package = os.path.join(os.path.dirname(sys.path[0]), "src")
 sys.path.append(os.path.dirname(package))
-from src.datasets.polyp.polyp_dataset import PolypDataset
+from src.models.SelfPromptBox.nms import non_max_suppression
+# from src.datasets.polyp.polyp_dataset import PolypDataset
 from src.metrics import get_scores, weighted_score
 from src.models.SelfPromptBox.box_prompt_SAM import PostProcess
 from src.datasets.polyp.Box_dataloader import PromptBaseDataset
@@ -85,12 +85,21 @@ def test_prompt(checkpoint,
             valid_mask=results[0]['scores']>thresh_hold
             valid_scores=results[0]['scores'][valid_mask]
             valid_boxes=results[0]['boxes'][valid_mask]
-            num_pred_boxes=torch.sum(valid_mask).cpu().item()
+
+            outputs = non_max_suppression(valid_boxes, valid_scores)
+            valid_boxes = valid_boxes[outputs]
+            valid_scores = valid_scores[outputs]
+            valid_mask = valid_mask[outputs]
+            if valid_boxes.shape[0] == 0:
+                valid_boxes = torch.from_numpy(np.array([[0,0,1023,1023]])).cuda()
+                valid_scores = torch.ones((1,)).cuda()
+            num_pred_boxes=valid_boxes.shape[0]
             img=Image.open(image_path,mode='r')
             img=img.resize((1024,1024),Image.BILINEAR)
             plt.gca().invert_yaxis()
             fig, ax = plt.subplots() 
             ax.imshow(img) # plot image
+
             for i in range(num_pred_boxes):
                 score=valid_scores[i].cpu().item()
                 x1,y1,x2,y2=valid_boxes[i].cpu().numpy()
@@ -100,11 +109,11 @@ def test_prompt(checkpoint,
                 x1,y1,x2,y2=box_prompts[i].cpu().numpy()
                 rect = Rectangle((x1,y1),(x2-x1), (y2-y1), linewidth=2, edgecolor='g', facecolor='none')
                 ax.add_patch(rect)
-            plt.savefig('save_figs2/'+name+"_box.png",)
+            # plt.savefig('save_figs2/'+name+"_box.png",)
             pred_masks, scores, logits = predictor.predict_torch(
                 point_coords=None,
                 point_labels=None,
-                boxes=None,
+                boxes= None if valid_boxes.shape[0] == 0 else valid_boxes,
                 multimask_output=False
             )
 
