@@ -2,3 +2,7 @@
 ckpts/
 __pycache__/
 data/
+tasks/fig/
+tasks/fig_infer/
+tasks/workdir/
+workdir/
