@@ -16,12 +16,16 @@ class ConvBlock(nn.Module):
         if cat:
             self.Conv_block = nn.Sequential(
                 ConvModule(in_channel + heatmap_channel, out_channel, kernel_size=self.kernel_size, padding=self.padding, norm_cfg=self.norm_cfg, act_cfg=self.act_cfg, groups=1),
+                # ConvModule(out_channel, out_channel, kernel_size=self.kernel_size, padding=self.padding, norm_cfg=self.norm_cfg, act_cfg=self.act_cfg, groups=1),
+                # ConvModule(out_channel, out_channel, kernel_size=self.kernel_size, padding=self.padding, norm_cfg=self.norm_cfg, act_cfg=self.act_cfg, groups=1),
                 ConvModule(out_channel, out_channel, kernel_size=self.kernel_size, padding=self.padding, norm_cfg=self.norm_cfg, act_cfg=self.act_cfg, groups=1),
                 ConvModule(out_channel, heatmap_channel, kernel_size=1, norm_cfg=self.norm_cfg, act_cfg=self.act_cfg)
             )
         else:
             self.Conv_block = nn.Sequential(
                 ConvModule(in_channel, out_channel, kernel_size=self.kernel_size, padding=self.padding, norm_cfg=self.norm_cfg, act_cfg=self.act_cfg, groups=1),
+                # ConvModule(out_channel, out_channel, kernel_size=self.kernel_size, padding=self.padding, norm_cfg=self.norm_cfg, act_cfg=self.act_cfg, groups=1),
+                # ConvModule(out_channel, out_channel, kernel_size=self.kernel_size, padding=self.padding, norm_cfg=self.norm_cfg, act_cfg=self.act_cfg, groups=1),
                 ConvModule(out_channel, out_channel, kernel_size=self.kernel_size, padding=self.padding, norm_cfg=self.norm_cfg, act_cfg=self.act_cfg, groups=1),
                 ConvModule(out_channel, heatmap_channel, kernel_size=1, norm_cfg=self.norm_cfg, act_cfg=self.act_cfg)
             )

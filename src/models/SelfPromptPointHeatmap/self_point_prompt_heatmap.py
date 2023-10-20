@@ -63,7 +63,7 @@ class SelfPointPromptWithHeatmap(nn.Module):
         loss_dict = dict()
         for i in range(len(heatmap_out)):
             loss_dict['heatmap_loss{}'.format(i)] = dict(
-                params=[heatmap_out[i]*INPUT['maskmap'], INPUT['heatmap']*INPUT['maskmap']],
+                params=[heatmap_out[i], INPUT['heatmap']],
                 type=torch.cuda.LongTensor([BASE_LOSS_DICT['mse_loss']]),
                 weight=torch.cuda.FloatTensor([BASE_LOSS_DICT['weight_dict']['heatmap_loss{}'.format(i)]])
             )

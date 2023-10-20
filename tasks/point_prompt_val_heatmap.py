@@ -81,10 +81,10 @@ def test_prompt(checkpoint,
             plt.imshow(mask)
             plt.title('mask')
 
-            if not os.path.exists("fig_infer/{0}".format(dataset_name)):
-                os.makedirs("fig_infer/{0}".format(dataset_name))
+            if not os.path.exists("fig_infer_120/{0}".format(dataset_name)):
+                os.makedirs("fig_infer_120/{0}".format(dataset_name))
 
-            plt.savefig("fig_infer/{0}/img_{1}".format(dataset_name, idx))
+            plt.savefig("fig_infer_120/{0}/img_{1}".format(dataset_name, idx))
 
     #         predictor.set_torch_image(image[None], image_size)
 

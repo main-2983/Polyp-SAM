@@ -110,10 +110,11 @@ def main():
                 f.write(f"Epoch: {epoch} \t Loss: {epoch_loss} \n")
 
         # Saving
-        accelerator.wait_for_everyone()
-        model_state_dict = accelerator.get_state_dict(model)
-        print(f"Saved model to {save_folder}")
-        accelerator.save(model_state_dict, f"{save_folder}/ckpts/{epoch}.pt")        
+        if epoch > 50 and epoch % 5:
+            accelerator.wait_for_everyone()
+            model_state_dict = accelerator.get_state_dict(model)
+            print(f"Saved model to {save_folder}")
+            accelerator.save(model_state_dict, f"{save_folder}/ckpts/{epoch}.pt")        
 
     # for i, batch in enumerate(tqdm(train_loader)):
     #     heatmap = batch[-1]

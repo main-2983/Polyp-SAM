@@ -12,8 +12,8 @@ from src.models.SelfPromptPointHeatmap.loss import Loss
 class Config:
     def __init__(self):
         # Model init
-        # PRETRAINED_PATH = "/home/trinh.quang.huy/polyp_for_sam/Polyp-SAM/ckpts/sam_vit_b_01ec64.pth"
-        PRETRAINED_PATH = None
+        PRETRAINED_PATH = "/home/trinh.quang.huy/polyp_for_sam/Polyp-SAM/ckpts/sam_vit_b_01ec64.pth"
+        # PRETRAINED_PATH = None
         MODEL_SIZE = "vit_b"
 
         # Model
@@ -42,7 +42,7 @@ class Config:
         self.NUM_WORKERS = 8
 
         # Training
-        self.MAX_EPOCHS = 50
+        self.MAX_EPOCHS = 200
 
         # Optimizer
         self.ACCUMULATE_STEPS = 8
