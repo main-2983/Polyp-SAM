@@ -59,7 +59,7 @@ class Config:
         self.NUM_WORKERS = 8
 
         # Training
-        self.MAX_EPOCHS = 200
+        self.MAX_EPOCHS = 1000
         self.ROUND_PER_EPOCH = 6
 
         # Optimizer
@@ -95,7 +95,7 @@ class Config:
 
         # Save
         self.SAVE_PATH = "workdir/train/Self-Prompt-Box"
-        self.EPOCH_TO_SAVE = 1
+        self.EPOCH_TO_SAVE = 10
         self.SAVE_FREQUENCY = 1
         self.RATE = 0.5
 

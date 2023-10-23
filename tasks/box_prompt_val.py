@@ -39,6 +39,7 @@ def test_prompt(checkpoint,
     device = model.device
 
     dataset_names = ['Kvasir', 'CVC-ClinicDB', 'CVC-ColonDB', 'CVC-300', 'ETIS-LaribPolypDB']
+    # dataset_names=['TrainDataset']
     table = []
     headers = ['Dataset', 'IoU', 'Dice', 'Recall', 'Precision']
     all_ious, all_dices, all_precisions, all_recalls = [], [], [], []

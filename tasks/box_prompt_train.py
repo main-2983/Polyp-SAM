@@ -97,7 +97,15 @@ def main():
         model, train_loader, optimizer_detection, criterion
     )
     device = model.device
-
+    # load weight head
+    checkpoint = torch.load("/home/dang.hong.thanh/Polyp-SAM/ckpts/detr-r50-dc5-f0fb7ef5.pth")
+    model_state_dict=checkpoint['model']
+    head_dict=dict()
+    for key in model_state_dict.keys():
+        if('decoder' in key):
+            new_key=key.replace('transformer.decoder','box_decoder')
+            head_dict[new_key]=model_state_dict[key]
+    model.box_decoder.load_state_dict(head_dict,strict=False)
     # Training loop
 
     start_time = time.time()
