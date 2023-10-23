@@ -30,8 +30,8 @@ class Config:
                                        sam.prompt_encoder)
 
         # Dataset and Dataloader
-        IMG_PATH = "/home/trinh.quang.huy/sun-polyp/Dataset/TrainDataset/image/*"
-        MASK_PATH = "/home/trinh.quang.huy/sun-polyp/Dataset/TrainDataset/mask/*"
+        IMG_PATH = ""
+        MASK_PATH = ""
         self.USE_BOX_PROMPT = False
         USE_CENTER_POINT = True
         self.IMAGE_SIZE = 1024
