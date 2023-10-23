@@ -9,7 +9,7 @@ pip install -r requirements.txt
 ```
 ## Training guide
 ```
-python interative_training.py config
+python interative_training.py configs.config
 ```
 ## Testing guide
 ```
