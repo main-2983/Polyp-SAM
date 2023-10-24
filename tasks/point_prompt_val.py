@@ -74,7 +74,7 @@ def test_prompt(checkpoint,
             
             point_prompt = model.point_model(img_embedding)
             point_label = model.labels
-        
+            
 
             pred_masks, scores, logits = predictor.predict_torch(
                 point_coords=point_prompt,

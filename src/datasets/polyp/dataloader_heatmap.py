@@ -3,7 +3,6 @@ from glob import glob
 import numpy as np
 from PIL import Image, ImageFile
 ImageFile.LOAD_TRUNCATED_IMAGES = True
-import cv2
 import torchvision.transforms as T
 import torch
 from torch.utils.data import Dataset
@@ -51,7 +50,7 @@ class PromptDatasetHeatmap(Dataset):
     def binary_loader(self, path):
         with open(path, 'rb') as f:
             img = Image.open(f).resize((self.image_size, self.image_size), Image.NEAREST)
-            img = np.array(img.convert('P'))
+            img = np.array(img.convert('L'))
             return img
 
     def __getitem__(self, index):
@@ -105,7 +104,6 @@ class PromptDatasetHeatmap(Dataset):
         point_prompts = point_prompts.reshape(-1, 1, 2)
         heat_map = self.heatmap_gen(gt_kpts = point_prompts, input_size = [1024, 1024])
         heat_map = T.Resize((self.mask_size, self.mask_size))(heat_map)
-        mask = cv2.resize(mask, (self.mask_size, self.mask_size))
         # To Tensor
         image = ToTensor()(image)
         mask = ToTensor()(mask)

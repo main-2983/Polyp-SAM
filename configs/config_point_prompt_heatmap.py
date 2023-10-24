@@ -12,7 +12,7 @@ from src.models.SelfPromptPointHeatmap.loss import Loss
 class Config:
     def __init__(self):
         # Model init
-        PRETRAINED_PATH = "/home/trinh.quang.huy/polyp_for_sam/Polyp-SAM/ckpts/sam_vit_b_01ec64.pth"
+        PRETRAINED_PATH = "/home/trinh.quang.huy/polyp_for_sam/Polyp-SAM/workdir/train/Self-Prompt-Box/chpt_Mai/polyp_point.pt"
         # PRETRAINED_PATH = None
         MODEL_SIZE = "vit_b"
 

@@ -1,15 +1,10 @@
 import argparse
 import os
-import time
 import datetime
-import torch
-import cv2
 from segmentation_models_pytorch.losses import DiceLoss, FocalLoss
 import importlib  # for import module
 import shutil  # for copy files
 from tqdm import tqdm
-from matplotlib.patches import Rectangle
-import numpy as np
 import logging
 logging.basicConfig(level=logging.INFO)
 import matplotlib.pyplot as plt
@@ -110,7 +105,7 @@ def main():
                 f.write(f"Epoch: {epoch} \t Loss: {epoch_loss} \n")
 
         # Saving
-        if epoch > 50 and epoch % 5:
+        if epoch > 50 and epoch % 5 == 0:
             accelerator.wait_for_everyone()
             model_state_dict = accelerator.get_state_dict(model)
             print(f"Saved model to {save_folder}")

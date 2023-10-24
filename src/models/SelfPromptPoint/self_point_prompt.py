@@ -31,7 +31,7 @@ class SelfPointPromptSAM(nn.Module):
 
         # num_points = self.point_model.num_points
         num_points = 2
-        self.register_buffer('labels', torch.tensor([[1, 0]], dtype=torch.long), False)
+        self.register_buffer('labels', torch.tensor([[1]], dtype=torch.long), False)
         # self.labels[0, num_points // 2:] = 0
 
         self.register_buffer('pixel_mean', torch.tensor(pixel_mean).view(-1, 1, 1), False)

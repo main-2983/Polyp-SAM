@@ -6,7 +6,7 @@ from tqdm import tqdm
 from tabulate import tabulate
 import numpy as np
 import matplotlib.pyplot as plt
-
+import cv2
 import torch
 
 from segment_anything import sam_model_registry, SamPredictor
@@ -46,7 +46,7 @@ def test_prompt(checkpoint,
     if store:
         for dataset_name in dataset_names:
             os.makedirs(f"{store_path}/Self-Prompt-Point/{dataset_name}", exist_ok=True)
-
+    count = 0
     for dataset_name in dataset_names:
         data_path = f'{test_folder}/{dataset_name}'
         test_images = glob('{}/images/*'.format(data_path))
@@ -60,6 +60,7 @@ def test_prompt(checkpoint,
 
         gts = []
         prs = []
+        count_data = 0
         for idx, i in enumerate(tqdm(range(len(test_dataset)), desc=dataset_name)):
             image_path = test_dataset.image_paths[i]
             name = os.path.basename(image_path)
@@ -67,86 +68,96 @@ def test_prompt(checkpoint,
             sample = test_dataset[i]
 
             image = sample[0].cuda()
-            mask = np.array(sample[1][0].cpu())
-
+            gt_mask = sample[1].cuda()
             img_embedding = model.image_encoder(model.preprocess(image[None]))
 
             heatmap = np.array(model.heat_model(img_embedding)[-1][0][0].cpu())
+            heatmap = cv2.resize(heatmap, (1024, 1024))
+            mapSmooth = cv2.GaussianBlur(heatmap,(3,3),0,0)
+            
+            mapSmooth = np.uint8(mapSmooth > 0.01) * 255
 
-            plt.subplot(1, 2, 1)
-            plt.imshow(heatmap)
-            plt.title('heatmap')
+            contours, _ = cv2.findContours(mapSmooth, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        
+            keypoints = list()
+            # # if contours == ():
+            # #     continue
+            for cnt in contours:
+                M = cv2.moments(cnt)
+                if M["m00"] != 0:
+                    cX = int(M["m10"] / M["m00"])
+                    cY = int(M["m01"] / M["m00"])
+                    keypoints.append((cX, cY))
+            if len(keypoints) != 0:
+                point_label = np.ones((len(keypoints), ))
+                point_prompt = torch.as_tensor(keypoints, dtype=torch.float, device=torch.device('cuda'))
+                point_label = torch.as_tensor(point_label, dtype=torch.int, device=torch.device('cuda'))
+                point_prompt, point_label = point_prompt[None, :, :], point_label[None, :]
+            else:
+                point_prompt = None
+                point_label = None
 
-            plt.subplot(1, 2, 2)
-            plt.imshow(mask)
-            plt.title('mask')
+            predictor.set_torch_image(image[None], config.IMAGE_SIZE)
 
-            if not os.path.exists("fig_infer_120/{0}".format(dataset_name)):
-                os.makedirs("fig_infer_120/{0}".format(dataset_name))
-
-            plt.savefig("fig_infer_120/{0}/img_{1}".format(dataset_name, idx))
-
-    #         predictor.set_torch_image(image[None], image_size)
-
-    #         img_embedding = model.image_encoder(model.preprocess(image[None]))
+            # img_embedding = model.image_encoder(model.preprocess(image[None]))
             
     #         point_prompt = model.point_model(img_embedding)
     #         point_label = model.labels
         
+            
+            pred_masks, scores, logits = predictor.predict_torch(
+                point_coords=None,
+                point_labels=None,
+                boxes=None,
+                multimask_output=False
+            )
 
-    #         pred_masks, scores, logits = predictor.predict_torch(
-    #             point_coords=point_prompt,
-    #             point_labels=point_label,
-    #             boxes=None,
-    #             multimask_output=False
-    #         )
+            pred_masks = pred_masks[0].detach().cpu().numpy() # (num_masks, H, W)
+            final_mask = pred_masks[0]
+            for i in range(1, len(pred_masks)):
+                final_mask = np.logical_or(final_mask, pred_masks[i])
+            gt_mask = gt_mask[0].cpu().numpy()
 
-    #         pred_masks = pred_masks[0].detach().cpu().numpy() # (num_masks, H, W)
-    #         final_mask = pred_masks[0]
-    #         for i in range(1, len(pred_masks)):
-    #             final_mask = np.logical_or(final_mask, pred_masks[i])
-    #         gt_mask = gt_mask[0].cpu().numpy()
+            gts.append(gt_mask)
+            prs.append(final_mask)
 
-    #         gts.append(gt_mask)
-    #         prs.append(final_mask)
+            if (store):
+                plt.figure(figsize=(10, 10))
+                plt.imshow(final_mask)
+                plt.axis("off")
+                plt.savefig(f"{store_path}/Self-Prompt-Point/{dataset_name}/{name}.png")
+                plt.close()
 
-    #         if (store):
-    #             plt.figure(figsize=(10, 10))
-    #             plt.imshow(final_mask)
-    #             plt.axis("off")
-    #             plt.savefig(f"{store_path}/Self-Prompt-Point/{dataset_name}/{name}.png")
-    #             plt.close()
+        mean_iou, mean_dice, mean_precision, mean_recall = get_scores(gts, prs)
+        all_ious.append(mean_iou)
+        all_dices.append(mean_dice)
+        all_recalls.append(mean_recall)
+        all_precisions.append(mean_precision)
+        table.append([dataset_name, mean_iou, mean_dice, mean_recall, mean_precision])
+    if len(dataset_names) > 1:
+        wiou = weighted_score(
+            scores=all_ious,
+            weights=metric_weights
+        )
+        wdice = weighted_score(
+            scores=all_dices,
+            weights=metric_weights
+        )
+        wrecall = weighted_score(
+            scores=all_recalls,
+            weights=metric_weights
+        )
+        wprecision = weighted_score(
+            scores=all_precisions,
+            weights=metric_weights
+        )
+        table.append(['Weighted', wiou, wdice, wrecall, wprecision])
+    print(tabulate(table, headers=headers, tablefmt="fancy_grid"))
 
-    #     mean_iou, mean_dice, mean_precision, mean_recall = get_scores(gts, prs)
-    #     all_ious.append(mean_iou)
-    #     all_dices.append(mean_dice)
-    #     all_recalls.append(mean_recall)
-    #     all_precisions.append(mean_precision)
-    #     table.append([dataset_name, mean_iou, mean_dice, mean_recall, mean_precision])
-    # if len(dataset_names) > 1:
-    #     wiou = weighted_score(
-    #         scores=all_ious,
-    #         weights=metric_weights
-    #     )
-    #     wdice = weighted_score(
-    #         scores=all_dices,
-    #         weights=metric_weights
-    #     )
-    #     wrecall = weighted_score(
-    #         scores=all_recalls,
-    #         weights=metric_weights
-    #     )
-    #     wprecision = weighted_score(
-    #         scores=all_precisions,
-    #         weights=metric_weights
-    #     )
-    #     table.append(['Weighted', wiou, wdice, wrecall, wprecision])
-    # print(tabulate(table, headers=headers, tablefmt="fancy_grid"))
-
-    # # Write result to file
-    # if store:
-    #     with open(f"{store_path}/Self-Prompt-Point/results_polyp.txt", 'w') as f:
-    #         f.write(tabulate(table, headers=headers, tablefmt="fancy_grid"))
+    # Write result to file
+    if store:
+        with open(f"{store_path}/Self-Prompt-Point/results_polyp.txt", 'w') as f:
+            f.write(tabulate(table, headers=headers, tablefmt="fancy_grid"))
 
 
 def parse_args():
