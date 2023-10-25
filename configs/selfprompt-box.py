@@ -53,6 +53,11 @@ class Config:
             glob(MASK_PATH),
             image_size=self.IMAGE_SIZE
         )
+        self.val_dataset = PromptBaseDataset(
+            glob("/home/dang.hong.thanh/datasets/polyp/Dataset/TestDataset/Kvasir/images/*.png"),
+            glob("/home/dang.hong.thanh/datasets/polyp/Dataset/TestDataset/Kvasir/mask/*.png"),
+            image_size=self.IMAGE_SIZE
+        )
         self.USE_BOX_PROMPT = False
 
         self.BATCH_SIZE = 2

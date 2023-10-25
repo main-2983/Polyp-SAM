@@ -76,7 +76,11 @@ def main():
         batch_size=config.BATCH_SIZE,
         num_workers=config.NUM_WORKERS
     )
-
+    val_dataset, val_loader = create_dataloader(
+        config.val_dataset,
+        batch_size=config.BATCH_SIZE,
+        num_workers=config.NUM_WORKERS
+    )
     # Loss
     loss_fn = config.LOSS_FN
     iou_loss = config.IOU_LOSS

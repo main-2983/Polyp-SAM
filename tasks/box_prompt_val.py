@@ -32,7 +32,7 @@ def test_prompt(checkpoint,
     config = module.Config()
     model: torch.nn.Module = config.model
     state_dict = torch.load(checkpoint, map_location="cpu")
-    model.load_state_dict(state_dict)
+    model.load_state_dict(state_dict,strict=False)
     model.eval()
     model = model.to("cuda")
     predictor = SamPredictor(model)
@@ -117,7 +117,8 @@ def test_prompt(checkpoint,
             pred_masks, scores, logits = predictor.predict_torch(
                 point_coords=None,
                 point_labels=None,
-                boxes= None if valid_boxes.shape[0] == 0 else valid_boxes,
+                # boxes= None if valid_boxes.shape[0] == 0 else valid_boxes,
+                boxes=box_prompts.cuda(),
                 multimask_output=False
             )
 
