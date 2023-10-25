@@ -44,8 +44,8 @@ class Config:
         #                                 freeze=[sam.image_encoder, sam.mask_decoder, sam.prompt_encoder])
 
         # Dataset and Dataloader
-        IMG_PATH = "/home/dang.hong.thanh/datasets/polyp/Dataset/TrainDataset/image/*"
-        MASK_PATH = "/home/dang.hong.thanh/datasets/polyp/Dataset/TrainDataset/mask/*"
+        IMG_PATH = "/home/dang.hong.thanh/datasets/polyp/Dataset/TrainDataset/image/*.png"
+        MASK_PATH = "/home/dang.hong.thanh/datasets/polyp/Dataset/TrainDataset/mask/*.png"
         self.IMAGE_SIZE = 1024
         self.EMBEDDING_PATHS = None
         self.dataset = PromptBaseDataset(
@@ -59,7 +59,7 @@ class Config:
         self.NUM_WORKERS = 8
 
         # Training
-        self.MAX_EPOCHS = 1000
+        self.MAX_EPOCHS = 100
         self.ROUND_PER_EPOCH = 6
 
         # Optimizer

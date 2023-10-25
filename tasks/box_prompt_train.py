@@ -62,7 +62,7 @@ def main():
 
     # Model
     model = config.model
-    state_dict=torch.load("ckpts/polyp_point.pt")
+    state_dict=torch.load("ckpts/polyp_box.pt")
     model.load_state_dict(state_dict,strict=False)
 
     # freeze image encoder and mask decoder
