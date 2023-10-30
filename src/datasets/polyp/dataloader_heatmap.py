@@ -5,9 +5,10 @@ from PIL import Image, ImageFile
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 import torchvision.transforms as T
 import torch
+import cv2
 from torch.utils.data import Dataset
 from torchvision.transforms import ToTensor
-from src.datasets.polyp.heatmap_generator import HeatmapGenerator
+from src.datasets.polyp.heatmap_generator import HeatmapGenerator, HeatmapGeneratorVer2
 from src.datasets.utils import sample_box, filter_box, uniform_sample_points, sample_center_point
 
 
@@ -33,6 +34,7 @@ class PromptDatasetHeatmap(Dataset):
         self.transform = transform
         self.mask_size = mask_size
         self.heatmap_gen = HeatmapGenerator()
+        self.heatmap_gen_ver2 = HeatmapGeneratorVer2()
 
         # Sort
         self.image_paths.sort()
@@ -50,12 +52,13 @@ class PromptDatasetHeatmap(Dataset):
     def binary_loader(self, path):
         with open(path, 'rb') as f:
             img = Image.open(f).resize((self.image_size, self.image_size), Image.NEAREST)
-            img = np.array(img.convert('L'))
-            return img
+            img1 = np.array(img.convert('L'))
+            img2 = np.array(img.convert('P'))
+            return img1, img2
 
     def __getitem__(self, index):
         image = self.rgb_loader(self.image_paths[index])
-        mask = self.binary_loader(self.mask_paths[index])
+        mask, mask2 = self.binary_loader(self.mask_paths[index])
         point_prompts = []
         point_labels = []
 
@@ -102,11 +105,16 @@ class PromptDatasetHeatmap(Dataset):
             masks = np.asarray(masks).transpose((1, 2, 0))
 
         point_prompts = point_prompts.reshape(-1, 1, 2)
-        heat_map = self.heatmap_gen(gt_kpts = point_prompts, input_size = [1024, 1024])
-        heat_map = T.Resize((self.mask_size, self.mask_size))(heat_map)
+        # heat_map = self.heatmap_gen(gt_kpts = point_prompts, input_size = [1024, 1024], maskmap=None)
+        heat_map = self.heatmap_gen_ver2(mask, with_mask=False)
+        heat_map = np.resize(heat_map, (self.mask_size, self.mask_size))
+
+        # heat_map = heat_map[0] / max(np.unique(heat_map[0])) #(1, 64, 64)
         # To Tensor
+        
         image = ToTensor()(image)
         mask = ToTensor()(mask)
+        heat_map = ToTensor()(heat_map)
         point_prompts = torch.as_tensor(point_prompts, dtype=torch.float) # (num_box, points_per_box, 2)
         point_labels = torch.as_tensor(point_labels, dtype=torch.int) # (num_box, points_per_box)
         

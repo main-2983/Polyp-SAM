@@ -75,7 +75,7 @@ def test_prompt(checkpoint,
             heatmap = cv2.resize(heatmap, (1024, 1024))
             mapSmooth = cv2.GaussianBlur(heatmap,(3,3),0,0)
             
-            mapSmooth = np.uint8(mapSmooth > 0.01) * 255
+            mapSmooth = np.uint8(mapSmooth > 0) * 255
 
             contours, _ = cv2.findContours(mapSmooth, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
         
@@ -106,8 +106,8 @@ def test_prompt(checkpoint,
         
             
             pred_masks, scores, logits = predictor.predict_torch(
-                point_coords=None,
-                point_labels=None,
+                point_coords=point_prompt,
+                point_labels=point_label,
                 boxes=None,
                 multimask_output=False
             )
@@ -175,10 +175,10 @@ def parse_args():
 
 # python /mnt/nvme1n1/intern2023/nguyen.xuan.hoa-b/Polyp-SAM/tasks/point_prompt_val.py '/mnt/nvme1n1/intern2023/nguyen.xuan.hoa-b/Polyp-SAM/workdir/train/Self-Prompt-Point/2023-10-02_022633/ckpts/20.pt' configs.selfprompt-point --path '/mnt/nvme1n1/intern2023/nguyen.xuan.hoa-b/Polyp-SAM/data/TestDataset' --store
 
-if __name__ == '__main__': 
-    args = parse_args()
-    test_prompt(args.ckpt,
-                args.config,
-                args.path,
-                args.store,
-                args.store_path)
+# if __name__ == '__main__': 
+#     args = parse_args()
+#     test_prompt(args.ckpt,
+#                 args.config,
+#                 args.path,
+#                 args.store,
+#                 args.store_path)
