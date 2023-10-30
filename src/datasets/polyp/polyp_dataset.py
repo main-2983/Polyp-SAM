@@ -8,6 +8,7 @@ import torch
 from torch.utils.data import Dataset
 
 from ..base import PromptBaseDataset, ToTensor
+from ..utils import sample_center_point
 
 
 class PromptPolypDataset(PromptBaseDataset):
@@ -53,6 +54,9 @@ class PolypDataset(Dataset):
     def __getitem__(self, index: int) -> Dict[str, Any]:
         image = self.rgb_loader(self.image_paths[index])
         mask = self.binary_loader(self.mask_paths[index])
+        
+        # Sample center point
+        points = sample_center_point(mask, 1)
 
         if self.embedding_paths is not None:
             embedding = np.load(self.embedding_paths[index])
@@ -60,6 +64,8 @@ class PolypDataset(Dataset):
         # To Tensor
         image = ToTensor()(image)
         mask = ToTensor()(mask)
+        points = torch.from_numpy(points).float()
+        
         if self.embedding_paths is not None:
             embedding = torch.from_numpy(embedding).float()
 
@@ -67,10 +73,12 @@ class PolypDataset(Dataset):
             return {
                 'image_embedding': embedding,  # (1, 256, 64, 64)
                 'image': image,  # (3, 1024, 1024)
-                'mask': mask  # (1, 1024, 1024)
+                'mask': mask,  # (1, 1024, 1024)
+                'points': points
             }
         else:
             return {
                 'image': image,
-                'mask': mask
+                'mask': mask,
+                'points': points
             }

@@ -6,7 +6,7 @@ from tqdm import tqdm
 from tabulate import tabulate
 import numpy as np
 import matplotlib.pyplot as plt
-
+import cv2
 import torch
 
 from segment_anything import sam_model_registry, SamPredictor
@@ -15,7 +15,7 @@ from segment_anything import sam_model_registry, SamPredictor
 import sys
 package = os.path.join(os.path.dirname(sys.path[0]), "src")
 sys.path.append(os.path.dirname(package))
-from src.datasets.polyp.polyp_dataset import PolypDataset
+from src.datasets.polyp.dataloader_heatmap import PromptDatasetHeatmap
 from src.metrics import get_scores, weighted_score
 
 
@@ -25,6 +25,7 @@ def test_prompt(checkpoint,
                 test_folder,
                 store: bool = False,
                 store_path: str = None):
+
     module = importlib.import_module(config)
     config = module.Config()
     model: torch.nn.Module = config.model
@@ -45,7 +46,7 @@ def test_prompt(checkpoint,
     if store:
         for dataset_name in dataset_names:
             os.makedirs(f"{store_path}/Self-Prompt-Point/{dataset_name}", exist_ok=True)
-
+    count = 0
     for dataset_name in dataset_names:
         data_path = f'{test_folder}/{dataset_name}'
         test_images = glob('{}/images/*'.format(data_path))
@@ -53,32 +54,60 @@ def test_prompt(checkpoint,
         test_masks = glob('{}/masks/*'.format(data_path))
         test_masks.sort()
 
-        test_dataset = PolypDataset(
-            test_images, test_masks, image_size=config.IMAGE_SIZE
+        test_dataset = PromptDatasetHeatmap(
+            test_images, test_masks, image_size=config.IMAGE_SIZE, mask_size=config.MASK_SIZE
         )
 
         gts = []
         prs = []
-        for i in tqdm(range(len(test_dataset)), desc=dataset_name):
+        count_data = 0
+        for idx, i in enumerate(tqdm(range(len(test_dataset)), desc=dataset_name)):
             image_path = test_dataset.image_paths[i]
             name = os.path.basename(image_path)
             name = os.path.splitext(name)[0]
             sample = test_dataset[i]
-            image = sample["image"].to(device)
-            gt_mask = sample["mask"].to(device)
-            image_size = (test_dataset.image_size, test_dataset.image_size)
 
-            predictor.set_torch_image(image[None], image_size)
-
+            image = sample[0].cuda()
+            gt_mask = sample[1].cuda()
             img_embedding = model.image_encoder(model.preprocess(image[None]))
-            
-            point_prompt = model.point_model(img_embedding)
-            point_label = model.labels
-            
 
+            heatmap = np.array(model.heat_model(img_embedding)[-1][0][0].cpu())
+            heatmap = cv2.resize(heatmap, (1024, 1024))
+            mapSmooth = cv2.GaussianBlur(heatmap,(3,3),0,0)
+            
+            mapSmooth = np.uint8(mapSmooth > 0.01) * 255
+
+            contours, _ = cv2.findContours(mapSmooth, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        
+            keypoints = list()
+            # # if contours == ():
+            # #     continue
+            for cnt in contours:
+                M = cv2.moments(cnt)
+                if M["m00"] != 0:
+                    cX = int(M["m10"] / M["m00"])
+                    cY = int(M["m01"] / M["m00"])
+                    keypoints.append((cX, cY))
+            if len(keypoints) != 0:
+                point_label = np.ones((len(keypoints), ))
+                point_prompt = torch.as_tensor(keypoints, dtype=torch.float, device=torch.device('cuda'))
+                point_label = torch.as_tensor(point_label, dtype=torch.int, device=torch.device('cuda'))
+                point_prompt, point_label = point_prompt[None, :, :], point_label[None, :]
+            else:
+                point_prompt = None
+                point_label = None
+
+            predictor.set_torch_image(image[None], config.IMAGE_SIZE)
+
+            # img_embedding = model.image_encoder(model.preprocess(image[None]))
+            
+    #         point_prompt = model.point_model(img_embedding)
+    #         point_label = model.labels
+        
+            
             pred_masks, scores, logits = predictor.predict_torch(
-                point_coords=point_prompt,
-                point_labels=point_label,
+                point_coords=None,
+                point_labels=None,
                 boxes=None,
                 multimask_output=False
             )

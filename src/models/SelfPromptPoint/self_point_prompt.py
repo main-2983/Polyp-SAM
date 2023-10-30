@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .point_gen_module import PointGenModule, PointGenModulev2
+from .point_gen_module import PointGenModule, PointGenModulev3, PointGenModulev3, PointGenModuleWViT
 
 from typing import List, Tuple, Dict, Any
 
@@ -14,7 +14,7 @@ class SelfPointPromptSAM(nn.Module):
     image_format: str = "RGB"
     def __init__(
             self,
-            point_model: PointGenModule,
+            point_model: PointGenModuleWViT,
             image_encoder: ImageEncoderViT,
             mask_decoder: MaskDecoder,
             prompt_encoder: PromptEncoder,
@@ -29,9 +29,10 @@ class SelfPointPromptSAM(nn.Module):
         self.mask_decoder = mask_decoder
         self.prompt_encoder = prompt_encoder
 
-        num_points = self.point_model.num_points
-        self.register_buffer('labels', torch.ones((1, num_points), dtype=torch.long), False)
-        self.labels[0, num_points // 2:] = 0
+        # num_points = self.point_model.num_points
+        num_points = 2
+        self.register_buffer('labels', torch.tensor([[1]], dtype=torch.long), False)
+        # self.labels[0, num_points // 2:] = 0
 
         self.register_buffer('pixel_mean', torch.tensor(pixel_mean).view(-1, 1, 1), False)
         self.register_buffer('pixel_std', torch.tensor(pixel_std).view(-1, 1, 1), False)
@@ -65,7 +66,8 @@ class SelfPointPromptSAM(nn.Module):
         if image_embedding is None:
             image_embedding = self.image_encoder(image)
 
-        points = self.point_model(image)
+        points = self.point_model(image_embedding)
+        # points = self.point_model(image_embedding)
 
         point_prompt = (points, self.labels)
 
@@ -89,6 +91,7 @@ class SelfPointPromptSAM(nn.Module):
         )
 
         return mask
+        # return mask, points
 
     def postprocess_masks(
             self,
@@ -136,7 +139,7 @@ class SelfPointPromptSAM(nn.Module):
 
 class SelfPointPromptSAMv2(SelfPointPromptSAM):
     def __init__(self,
-                 point_model: PointGenModulev2,
+                 point_model: PointGenModulev3,
                  *args,
                  **kwargs):
         super(SelfPointPromptSAMv2, self).__init__(point_model, *args, **kwargs)
@@ -174,5 +177,6 @@ class SelfPointPromptSAMv2(SelfPointPromptSAM):
             input_size=image.shape[-2:],
             original_size=input.get("image_size"),
         )
-
-        return mask
+        
+        # return mask
+        return mask, points
