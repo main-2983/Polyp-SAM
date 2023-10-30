@@ -5,4 +5,6 @@ data/
 tasks/fig/
 tasks/fig_infer/
 tasks/workdir/
+*.pt
+save_figs2/
 workdir/

@@ -148,7 +148,7 @@ def uniform_sample_points(mask: Union[torch.Tensor, np.ndarray], num_points: int
         if (max(mask.flatten()) > 1):
             norm_mask = mask / 255
         # Extract points of the mask
-        width_non0, height_non0 = np.where(norm_mask == 1)
+        height_non0, width_non0 = np.where(norm_mask == 1)
         # Randomly take a point
         rand_widths, rand_heights = [], []
         if width_non0.shape[0] > 0:  # if we have point in the mask
@@ -159,7 +159,7 @@ def uniform_sample_points(mask: Union[torch.Tensor, np.ndarray], num_points: int
                 rand_heights.append(rand_height)
             rand_widths, rand_heights = np.array(rand_widths), np.array(rand_heights)
 
-        return rand_heights, rand_widths  # Y-coord, X-coord
+        return rand_widths, rand_heights  # X-coord, Y-coord
 
     def _uniform_sample_points_torch(mask: torch.Tensor, num_points: int = 1):
         """
@@ -185,13 +185,13 @@ def uniform_sample_points(mask: Union[torch.Tensor, np.ndarray], num_points: int
         else:
             rand_heights, rand_widths = torch.tensor(rand_heights), torch.tensor(rand_widths)
 
-        return rand_heights, rand_widths  # Y-coord, X-coord
+        return rand_widths, rand_heights  # X-coord, Y-coord
 
     if isinstance(mask, torch.Tensor):
-        rand_heights, rand_widths = _uniform_sample_points_torch(mask, num_points)
+        rand_widths, rand_heights = _uniform_sample_points_torch(mask, num_points)
     else:
-        rand_heights, rand_widths = _uniform_sample_points_numpy(mask, num_points)
-    return rand_heights, rand_widths
+        rand_widths, rand_heights = _uniform_sample_points_numpy(mask, num_points)
+    return rand_widths, rand_heights
 
 
 def sample_center_point(mask: np.ndarray, num_points: int = 1):
@@ -205,8 +205,8 @@ def sample_center_point(mask: np.ndarray, num_points: int = 1):
     points = []
     for idx in np.split(flat_mask.argsort(), split)[2:][:num_points]:
         points.append(np.array(np.unravel_index(idx, mask.shape)).mean(axis=1))
-    points = np.asarray(points, dtype=np.int_) # (Width, Height)
-    # Turn to (Height, Width)
+    points = np.asarray(points, dtype=np.int_) # (Height, Width)
+    # Turn to (Width, Height)
     points = np.asarray([point[::-1] for point in points])
     return points
 
