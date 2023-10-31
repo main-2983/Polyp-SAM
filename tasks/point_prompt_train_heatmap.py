@@ -6,6 +6,8 @@ import importlib  # for import module
 import shutil  # for copy files
 from tqdm import tqdm
 import logging
+import torch
+import numpy as np
 logging.basicConfig(level=logging.INFO)
 import matplotlib.pyplot as plt
 from accelerate import Accelerator
@@ -16,7 +18,7 @@ import sys
 package = os.path.join(os.path.dirname(sys.path[0]), "src")
 sys.path.append(os.path.dirname(package))
 from src.datasets import create_dataloader
-
+from point_prompt_val_heatmap import test_prompt
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -74,11 +76,10 @@ def main():
             with accelerator.accumulate(model):
                 image = batch[0]
                 mask = batch[1]
-                heatmap_label = batch[-1][:, 0, :, :]
-
+                heatmap_label = batch[-1]
                 _input = {
                     'image': image,
-                    'heatmap': heatmap_label.unsqueeze(0),
+                    'heatmap': heatmap_label,
                     'maskmap': mask
                 }
 
@@ -87,7 +88,7 @@ def main():
                 loss_dict = loss_fn(out)
 
                 loss = loss_dict["loss"]
-
+                
                 accelerator.backward(loss)
 
                 optimizer.step()
@@ -105,23 +106,27 @@ def main():
                 f.write(f"Epoch: {epoch} \t Loss: {epoch_loss} \n")
 
         # Saving
-        if epoch > 50 and epoch % 5 == 0:
+        if epoch >= 40 and epoch % 5 == 0:
+
             accelerator.wait_for_everyone()
             model_state_dict = accelerator.get_state_dict(model)
             print(f"Saved model to {save_folder}")
-            accelerator.save(model_state_dict, f"{save_folder}/ckpts/{epoch}.pt")        
+            accelerator.save(model_state_dict, f"{save_folder}/ckpts/{epoch}.pt")       
+            ckpts_path = f"{save_folder}/ckpts/{epoch}.pt"
+            DatasetTest = "/home/trinh.quang.huy/sun-polyp/Dataset/TestDataset"
+            test_prompt(ckpts_path, args.config, DatasetTest)
 
     # for i, batch in enumerate(tqdm(train_loader)):
-    #     heatmap = batch[-1]
-    #     mask = batch[1]
-    #     print(heatmap.shape)
-    #     print(mask.shape)
-    #     mask = np.array(mask.cpu())
-    #     heatmap = np.array(heatmap.cpu())
-    #     heatmap = cv2.resize(heatmap, (64, 64))
 
-    #     plt.imshow(mask + heatmap)
-    #     plt.savefig("fig/mask{0}.png".format(i))
+    #     heatmap = batch[-1]
+    #     mask = batch[1][0][0]
+        # mask = np.array(mask.cpu())
+        # heatmap = np.array(heatmap.cpu())
+        # maps = heatmap + mask
+        # plt.imshow(maps)
+        # if not os.path.exists("fig"):
+        #     os.makedirs("fig")
+        # plt.savefig("fig/mask{0}.png".format(i))
 
 if __name__ == "__main__":
     main()
