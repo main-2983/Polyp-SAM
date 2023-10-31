@@ -53,69 +53,22 @@ class PromptDatasetHeatmap(Dataset):
         with open(path, 'rb') as f:
             img = Image.open(f).resize((self.image_size, self.image_size), Image.NEAREST)
             img1 = np.array(img.convert('L'))
-            img2 = np.array(img.convert('P'))
+            img = Image.open(f).resize((self.mask_size, self.mask_size), Image.NEAREST)
+            img2 = np.array(img.convert('L'))
             return img1, img2
 
     def __getitem__(self, index):
         image = self.rgb_loader(self.image_paths[index])
         mask, mask2 = self.binary_loader(self.mask_paths[index])
-        point_prompts = []
-        point_labels = []
-
-        # Extract Boxes
-        boxes = sample_box(mask)
-        boxes = filter_box(boxes, self.box_threshold)
-        if self.transform is not None:
-            transformed = self.transform(image=image,
-                                         mask=mask,
-                                         bboxes=boxes,
-                                         label=['positive'] * boxes.shape[0])
-            image = transformed["image"]
-            mask = transformed["mask"]
-            boxes = np.asarray(transformed["bboxes"], dtype=np.int32)
-
-        # Extract Points and Masks wrt box
-        num_box = boxes.shape[0]
-        # print(num_box)
-        masks = []
-        for i in range(num_box):
-            # Get the box region
-            box = boxes[i]
-            # Extract the mask within the box region
-            region = mask[box[1]: box[3], box[0]: box[2]]
-            # Create the fake original mask with the extracted mask above
-            _mask = np.zeros(mask.shape, dtype=np.uint8)
-            _mask[box[1]: box[3], box[0]: box[2]] = region
-            if not self.use_center_points:
-                rand_height, rand_width = uniform_sample_points(_mask, num_points=self.num_points)
-                point_prompt = np.hstack([rand_height, rand_width])
-            else:
-                point_prompt = sample_center_point(_mask, num_points=self.num_points)
-            point_label = np.ones((self.num_points,))
-            point_prompts.append(point_prompt)
-            point_labels.append(point_label)
-            masks.append(_mask)
-        try:
-            point_prompts = np.asarray(point_prompts)
-            point_labels = np.asarray(point_labels)
-            masks = np.asarray(masks).transpose((1, 2, 0))
-        except ValueError:
-            point_prompts = np.asarray(point_prompts)
-            point_labels = np.asarray(point_labels)
-            masks = np.asarray(masks).transpose((1, 2, 0))
-
-        point_prompts = point_prompts.reshape(-1, 1, 2)
-        # heat_map = self.heatmap_gen(gt_kpts = point_prompts, input_size = [1024, 1024], maskmap=None)
-        heat_map = self.heatmap_gen_ver2(mask, with_mask=False)
-        heat_map = np.resize(heat_map, (self.mask_size, self.mask_size))
-
-        # heat_map = heat_map[0] / max(np.unique(heat_map[0])) #(1, 64, 64)
-        # To Tensor
+        # mask = np.where(mask > 127, 255, 0).astype(np.uint8)
+        mask2 = np.where(mask2 > 127, 255, 0)
         
+
+        heat_map = self.heatmap_gen_ver2(mask2, with_mask=False)
+
+        # To Tensor
         image = ToTensor()(image)
         mask = ToTensor()(mask)
         heat_map = ToTensor()(heat_map)
-        point_prompts = torch.as_tensor(point_prompts, dtype=torch.float) # (num_box, points_per_box, 2)
-        point_labels = torch.as_tensor(point_labels, dtype=torch.int) # (num_box, points_per_box)
         
-        return image, mask, point_prompts, heat_map
+        return image, mask, heat_map

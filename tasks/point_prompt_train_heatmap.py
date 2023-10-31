@@ -118,15 +118,18 @@ def main():
 
     # for i, batch in enumerate(tqdm(train_loader)):
 
-    #     heatmap = batch[-1]
+    #     heatmap = batch[-1][0][0]
     #     mask = batch[1][0][0]
-        # mask = np.array(mask.cpu())
-        # heatmap = np.array(heatmap.cpu())
-        # maps = heatmap + mask
-        # plt.imshow(maps)
-        # if not os.path.exists("fig"):
-        #     os.makedirs("fig")
-        # plt.savefig("fig/mask{0}.png".format(i))
+    #     mask = np.array(mask.cpu())
+    #     mask = cv2.resize(mask, (64, 64))
+    #     heatmap = np.array(heatmap.cpu())
+    #     plt.subplot(1, 2, 1)
+    #     plt.imshow(heatmap)
+    #     plt.subplot(1, 2, 2)
+    #     plt.imshow(mask)
+    #     if not os.path.exists("fig_heatmap_label"):
+    #         os.makedirs("fig_heatmap_label")
+    #     plt.savefig("fig_heatmap_label/mask{0}.png".format(i))
 
 if __name__ == "__main__":
     main()
