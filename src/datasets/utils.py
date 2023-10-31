@@ -4,7 +4,7 @@ import numpy as np
 import torch
 from torch.utils.data import  DataLoader
 from skimage.measure import label, regionprops, find_contours
-
+import cv2
 
 def collate_fn(batch):
     images, masks, point_prompts, point_labels, box_prompts, task_prompts = zip(*batch)
@@ -227,3 +227,24 @@ class UnNormalize(object):
             t.mul_(s).add_(m)
             # The normalize code -> t.sub_(m).div_(s)
         return tensor
+
+def centroids_of_regions(mask: np.ndarray) -> np.ndarray:
+    """
+    Find the centroids of each 1's region in a binary mask.
+    """
+    # Convert to uint8
+    mask = mask.astype(np.uint8)
+    # Find the contours
+    contours, _ = cv2.findContours(
+        mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    centroids = []
+    for contour in contours:
+        # Find the moments:
+        M = cv2.moments(contour)
+        # Ensure that the moment is not zero to avoid division by zero
+        if M["m00"] != 0:
+            # Find the centroid
+            cX = int(M["m10"] / M["m00"])
+            cY = int(M["m01"] / M["m00"])
+            centroids.append(np.array([cX, cY]))
+    return centroids
