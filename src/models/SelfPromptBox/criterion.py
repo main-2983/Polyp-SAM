@@ -181,7 +181,7 @@ class SetCriterion(nn.Module):
 
 def build_criterion():
     losses = ['labels', 'boxes', 'cardinality']
-    num_classes = 1
+    num_classes = 2
     weight_dict = {'loss_ce': 1, 'loss_bbox': 5}
     # weight_dict = {'loss_ce': 1, 'loss_bbox': 1}
 

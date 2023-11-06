@@ -5,3 +5,4 @@ workdir/
 *.png
 *.pt
 *ipynb
+/detr

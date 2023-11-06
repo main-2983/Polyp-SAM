@@ -7,7 +7,6 @@ from segment_anything import sam_model_registry
 from torch.nn import BCEWithLogitsLoss, MSELoss
 
 from src.models.SelfPromptBox.box_prompt_SAM import SelfBoxPromptSam
-# from src.models.SelfPromptPoint import SelfPointPromptSAM, PointGenModule
 
 from src.scheduler import LinearWarmupCosineAnnealingLR
 from src.losses import CombinedLoss
@@ -36,13 +35,6 @@ class Config:
                                     sam.image_encoder,
                                     sam.mask_decoder,
                                     sam.prompt_encoder)
-        # point_gen = PointGenModule()
-        # self.model= SelfPointPromptSAM(point_gen,
-        #                                 sam.image_encoder,
-        #                                 sam.mask_decoder,
-        #                                 sam.prompt_encoder,
-        #                                 freeze=[sam.image_encoder, sam.mask_decoder, sam.prompt_encoder])
-
         # Dataset and Dataloader
         IMG_PATH = "/home/dang.hong.thanh/datasets/polyp/Dataset/TrainDataset/image/*.png"
         MASK_PATH = "/home/dang.hong.thanh/datasets/polyp/Dataset/TrainDataset/mask/*.png"
@@ -55,7 +47,7 @@ class Config:
         )
         self.val_dataset = PromptBaseDataset(
             glob("/home/dang.hong.thanh/datasets/polyp/Dataset/TestDataset/Kvasir/images/*.png"),
-            glob("/home/dang.hong.thanh/datasets/polyp/Dataset/TestDataset/Kvasir/mask/*.png"),
+            glob("/home/dang.hong.thanh/datasets/polyp/Dataset/TestDataset/Kvasir/masks/*.png"),
             image_size=self.IMAGE_SIZE
         )
         self.USE_BOX_PROMPT = False
@@ -64,7 +56,7 @@ class Config:
         self.NUM_WORKERS = 8
 
         # Training
-        self.MAX_EPOCHS = 100
+        self.MAX_EPOCHS = 200
         self.ROUND_PER_EPOCH = 6
 
         # Optimizer
@@ -76,7 +68,7 @@ class Config:
         )
 
         self.OPTIMIZER_KWARGS_DETECTION = dict(
-            lr=1e-4,
+            lr=2e-5,
             weight_decay=1e-4
         )
         
@@ -101,7 +93,7 @@ class Config:
         # Save
         self.SAVE_PATH = "workdir/train/Self-Prompt-Box"
         self.EPOCH_TO_SAVE = 10
-        self.SAVE_FREQUENCY = 1
+        self.SAVE_FREQUENCY = 2
         self.RATE = 0.5
 
         self.USE_BOX_PROMPT=True

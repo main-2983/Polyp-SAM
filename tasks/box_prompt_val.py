@@ -10,12 +10,12 @@ from matplotlib.patches import Rectangle
 from PIL import Image
 import torch
 from segment_anything import sam_model_registry, SamPredictor
+from torchmetrics.detection import MeanAveragePrecision
 
 import sys
 package = os.path.join(os.path.dirname(sys.path[0]), "src")
 sys.path.append(os.path.dirname(package))
-from src.models.SelfPromptBox.nms import non_max_suppression
-# from src.datasets.polyp.polyp_dataset import PolypDataset
+# from src.models.SelfPromptBox.nms import non_max_suppression
 from src.metrics import get_scores, weighted_score
 from src.models.SelfPromptBox.box_prompt_SAM import PostProcess
 from src.datasets.polyp.Box_dataloader import PromptBaseDataset
@@ -44,21 +44,23 @@ def test_prompt(checkpoint,
     headers = ['Dataset', 'IoU', 'Dice', 'Recall', 'Precision']
     all_ious, all_dices, all_precisions, all_recalls = [], [], [], []
     metric_weights = [0.1253, 0.0777, 0.4762, 0.0752, 0.2456]
-
+    # detr=torch.hub.load('facebookresearch/detr', 'detr_resnet50', pretrained=True)
+    # num_classes = 2  # 1 class (wheat) + background
+    # detr.class_embed = torch.nn.Linear(256, num_classes+1, bias = True)
+    # detr.to(device)
+    # checkpoint=torch.load("/home/dang.hong.thanh/Polyp-SAM/detr/logs/checkpoint0199.pth")
+    # detr.load_state_dict(checkpoint['model'])
     if store:
         for dataset_name in dataset_names:
             os.makedirs(f"{store_path}/Self-Prompt-Point/{dataset_name}", exist_ok=True)
 
     for dataset_name in dataset_names:
         data_path = f'{test_folder}/{dataset_name}'
-        test_images = glob('{}/images/*'.format(data_path))
+        test_images = glob('{}/images/*.png'.format(data_path))
         test_images.sort()
-        test_masks = glob('{}/masks/*'.format(data_path))
+        test_masks = glob('{}/masks/*.png'.format(data_path))
         test_masks.sort()
 
-        # test_dataset = PolypDataset(
-        #     test_images, test_masks, image_size=config.IMAGE_SIZE
-        # )
         test_dataset = PromptBaseDataset(
             test_images, test_masks, image_size=config.IMAGE_SIZE
         )
@@ -77,6 +79,9 @@ def test_prompt(checkpoint,
             predictor.set_torch_image(image[None], image_size)
 
             outputs=model.forward_box(image[None])
+
+            # outputs=detr(image[None])
+            ################## end detr###############
             postprocessors=PostProcess()
             orig_target_sizes= torch.stack([torch.tensor([1024,1024]).to(image.device)])
             results = postprocessors(outputs, orig_target_sizes)
@@ -87,10 +92,10 @@ def test_prompt(checkpoint,
             valid_scores=results[0]['scores'][valid_mask]
             valid_boxes=results[0]['boxes'][valid_mask]
 
-            outputs = non_max_suppression(valid_boxes, valid_scores)
-            valid_boxes = valid_boxes[outputs]
-            valid_scores = valid_scores[outputs]
-            valid_mask = valid_mask[outputs]
+            # outputs = non_max_suppression(valid_boxes, valid_scores)
+            # valid_boxes = valid_boxes[outputs]
+            # valid_scores = valid_scores[outputs]
+            # valid_mask = valid_mask[outputs]
             if valid_boxes.shape[0] == 0:
                 valid_boxes = torch.from_numpy(np.array([[0,0,1023,1023]])).cuda()
                 valid_scores = torch.ones((1,)).cuda()
@@ -117,8 +122,8 @@ def test_prompt(checkpoint,
             pred_masks, scores, logits = predictor.predict_torch(
                 point_coords=None,
                 point_labels=None,
-                # boxes= None if valid_boxes.shape[0] == 0 else valid_boxes,
-                boxes=box_prompts.cuda(),
+                boxes= None if valid_boxes.shape[0] == 0 else valid_boxes,
+                # boxes=box_prompts.cuda(),
                 multimask_output=False
             )
 

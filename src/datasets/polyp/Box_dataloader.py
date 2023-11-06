@@ -188,12 +188,9 @@ def collate_fn(batch):
         H = (box[:, 3] - box[:, 1])/1024
         targets['boxes'] = torch.stack((center_x, center_y, W, H), dim = 1)
         number_object = box.shape[0]
-        targets['labels'] = torch.zeros(number_object,dtype=torch.long)
-        # targets['labels'] = torch.ones(number_object,dtype=torch.long)
+        # targets['labels'] = torch.zeros(number_object,dtype=torch.long)
+        targets['labels'] = torch.ones(number_object,dtype=torch.long)
         target_detection.append(targets)
-    # new_box_labels = torch.stack(new_box_labels, dim = 0)
-    # label_class = torch.stack(label_class, dim=0)
-    # print(masks.shape)
     return images, masks, point_prompts, point_labels, box_prompts, task_prompts, target_detection
 
 def create_dataloader(dataset,
