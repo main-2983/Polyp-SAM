@@ -186,10 +186,11 @@ def collate_fn(batch):
         center_y = ((box[:, 1] + box[:, 3])/2)/1024
         W = (box[:, 2] - box[:, 0])/1024
         H = (box[:, 3] - box[:, 1])/1024
-        targets['boxes'] = torch.stack((center_x, center_y, W, H), dim = 1)
+        # targets['boxes'] = torch.stack((center_x, center_y, W, H), dim = 1)
+        targets['boxes'] = torch.stack((center_x, center_y), dim = 1)
         number_object = box.shape[0]
-        # targets['labels'] = torch.zeros(number_object,dtype=torch.long)
-        targets['labels'] = torch.ones(number_object,dtype=torch.long)
+        targets['labels'] = torch.zeros(number_object,dtype=torch.long)
+        # targets['labels'] = torch.ones(number_object,dtype=torch.long)
         target_detection.append(targets)
     return images, masks, point_prompts, point_labels, box_prompts, task_prompts, target_detection
 
