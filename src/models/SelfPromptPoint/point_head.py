@@ -69,12 +69,12 @@ class PointHead(nn.Module):
         self.top_k = top_k
         self.center_radius = center_radius
 
-    def forward(self, x):
+    def forward(self, x) -> List[torch.Tensor]:
         obj_feats = self.obj_convs(x)
 
         obj_pred = self.obj_pred(obj_feats)
 
-        return obj_pred
+        return [obj_pred]
 
     def decode_prediction(self,
                           obj_pred: torch.Tensor,

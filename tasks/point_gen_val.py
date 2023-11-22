@@ -115,8 +115,9 @@ def test_prompt(checkpoint,
                 plt.axis("off")
                 plt.savefig(f"{store_path}/Self-Prompt-Point/{dataset_name}/{name}.png")
                 plt.close()
-                point_pred_np = point_pred[0, 0].cpu().numpy()
-                plt.imshow(point_pred_np)
+                fig, axis = plt.subplots(1, len(point_pred))
+                for i in range(len(point_pred)):
+                    axis[i].imshow(point_pred[i][0, 0].cpu().numpy())
                 plt.savefig(f"{store_path}/Self-Prompt-Point/{dataset_name}/{name}_featmap.png")
                 plt.close()
 
