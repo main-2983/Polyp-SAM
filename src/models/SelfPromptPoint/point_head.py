@@ -267,7 +267,46 @@ class MlvlPointHead(nn.Module):
             obj_pred = self.mlvl_obj[i](obj_feats)
             mlvl_preds.append(obj_pred)
 
-        return mlvl_preds
+        return mlvl_preds   
+    
+    def decode_prediction(self,
+                          obj_preds: List[torch.Tensor],
+                          threshold: float = 0.5):
+        """ 
+        This is a single image prediction, do not use it on batch size > 1
+        Args:
+            obj_pred: List of predictions, each prediction is from a single scale
+        """
+        featmap_sizes = [obj_pred.shape[-2:] for obj_pred in obj_preds]
+        device = obj_preds[0].device
+        
+        mlvl_priors = self.prior_generator.grid_priors(
+            featmap_sizes=featmap_sizes, 
+            device=device
+        ) # ((num_priors_per_level, 2) * level)
+        flatten_priors = torch.cat(mlvl_priors, 0) # (num_priors, 2)
+        
+        flatten_preds = [
+            obj_pred.flatten()
+            for obj_pred in obj_preds
+        ]
+        flatten_preds = torch.cat(flatten_preds)
+
+        flatten_preds = flatten_preds.sigmoid()
+        positive_mask = torch.where(flatten_preds >= threshold, True, False)
+        positive_priors = flatten_priors[positive_mask] # (positive_points, 2)
+
+        # If fails to pass the threshold
+        if positive_priors.shape[0] == 0:
+            # Sample topk
+            values, indices = torch.topk(flatten_preds, k=self.top_k)
+            positive_mask = torch.where(flatten_preds >= values[-1], True, False)
+            positive_priors = flatten_priors[positive_mask]
+
+        point_labels = torch.ones((1, positive_priors.shape[0]), dtype=torch.long, device=device)
+
+        return positive_priors.unsqueeze(0),\
+               point_labels # (1, positive_points, 2) -> Expand num_box dim
 
     def prepare_for_loss(self,
                          obj_preds: List[torch.Tensor],
@@ -326,10 +365,10 @@ class MlvlPointHead(nn.Module):
 
         mlvl_pos_masks, positive_inds = self._filter_points(
             mlvl_pos_masks, num_gts, self.top_k
-        ) # [(num_priors, num_gts) * num_levels]
+        ) # [(num_priors, ) * num_levels]
 
-        # flatten
-        flatten_positive_masks = torch.cat(mlvl_pos_masks)
+        # Assign 1 for positive
+        flatten_positive_masks = torch.cat(mlvl_pos_masks) # (total_num_priors, )
         assigned_gt_inds[flatten_positive_masks] = 1
         num_positives = sum(flatten_positive_masks)
 
@@ -415,5 +454,3 @@ class MlvlPointHead(nn.Module):
         ]
 
         return new_mlvl_positive_mask[::-1], top_k_inds
-
-
