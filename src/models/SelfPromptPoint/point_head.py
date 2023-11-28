@@ -226,12 +226,13 @@ class MlvlPointHead(nn.Module):
                  center_radius: float = 1.5):
         super(MlvlPointHead, self).__init__()
 
+        assert len(strides) == len(feat_channels)
         self.max_poolings = nn.ModuleList()
         self.mlvl_convs = nn.ModuleList()
         self.mlvl_obj = nn.ModuleList()
 
         for i in range(len(strides)):
-            max_pool = nn.Identity() if i == 0 else nn.MaxPool2d(kernel_size=2, stride=2)
+            max_pool = nn.Identity() if strides[i] == 16 else nn.MaxPool2d(kernel_size=2, stride=2)
             convs = []
             for j in range(num_convs):
                 in_chn = in_channels if j == 0 else feat_channels[i]
