@@ -111,12 +111,12 @@ class IterativePointPrompt(nn.Module):
         return assigned_gt_inds
 
 
-class IterativeSelfPropmtSAM(PolypSAM):
+class IterativeSelfPromptSAM(PolypSAM):
     def __init__(self,
                  *args,
                  point_prompt_module: IterativePointPrompt,
                  **kwargs):
-        super(IterativeSelfPropmtSAM, self).__init__(*args, **kwargs)
+        super(IterativeSelfPromptSAM, self).__init__(*args, **kwargs)
 
         self.point_prompt_module = point_prompt_module
 
