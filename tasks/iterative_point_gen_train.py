@@ -17,6 +17,9 @@ from accelerate.utils import DistributedDataParallelKwargs
 
 import torch
 
+import sys
+package = os.path.join(os.path.dirname(sys.path[0]), "src")
+sys.path.append(os.path.dirname(package))
 from src.datasets import create_dataloader, uniform_sample_points
 from src.metrics import iou_torch
 
