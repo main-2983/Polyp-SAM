@@ -114,7 +114,7 @@ def main():
                     input_images = torch.stack([model.preprocess(img) for img in images], dim=0)
 
                 # Forward batch, process per-image
-                batch_loss = []
+                batch_loss, sam_losses, prompt_losses = [], [], []
                 for image, gt_mask, point_prompt, point_label, box_prompt in zip(
                         input_images, masks, point_prompts, point_labels, box_prompts
                 ):
@@ -245,6 +245,8 @@ def main():
                             mask_input = selected_masks
                     # End of all round
                     batch_loss.append(round_loss)
+                    sam_losses.append(loss)
+                    prompt_losses.append(prompt_loss)
 
                 # After batch
                 sam_optimizer.step()
@@ -258,7 +260,10 @@ def main():
         sam_scheduler.step()
         prompt_scheduler.step()
         epoch_loss = sum(epoch_losses) / len(epoch_losses)
-        logger.info(f"Epoch: {epoch} \t Loss: {epoch_loss}", main_process_only=True)
+        sam_loss = sum(sam_losses) / len(sam_losses)
+        prompt_l = sum(prompt_losses) / len(prompt_losses)
+        logger.info(f"Epoch: {epoch} \t Total Loss: {epoch_loss} \t SAM Loss: {sam_loss} \t Prompt Loss: {prompt_l}",
+                    main_process_only=True)
         if accelerator.is_main_process:
             with open(f"{save_folder}/exp.log", 'a') as f:
                 f.write(f"Epoch: {epoch} \t Loss: {epoch_loss} \n")
