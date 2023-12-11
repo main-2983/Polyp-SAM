@@ -89,7 +89,7 @@ def main():
             positive_target = point_target[..., 1].cpu().numpy() # (64, 64)
             negative_target = point_target[..., 0].cpu().numpy() # (64, 64)
             positive_pred = point_pred[0, 1, ...].cpu().numpy()
-            negative_pred = positive_pred[0, 0, ...].cpu().numpy()
+            negative_pred = point_pred[0, 0, ...].cpu().numpy()
             plots = (positive_target, negative_target, positive_pred, negative_pred)
             for i in range(1, 5):
                 axis[i].imshow(plots[i - 1])
