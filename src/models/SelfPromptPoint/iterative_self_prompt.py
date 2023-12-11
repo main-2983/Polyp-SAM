@@ -253,6 +253,8 @@ class IterativeSelfPredictor(SamPredictor):
 
         # Get dense emb
         sparse_embeddings, dense_embeddings = self.model.prompt_encoder(
+            points=None,
+            boxes=None,
             masks=mask_input)
 
         # Predict points
