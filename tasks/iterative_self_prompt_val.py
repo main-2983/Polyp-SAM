@@ -23,7 +23,8 @@ from src.models.SelfPromptPoint import IterativeSelfPredictor, IterativeSelfProm
 def test_prompt(checkpoint,
                 config,
                 test_folder,
-                threshold: float = 0.1,
+                positive_threshold: float = 0.1,
+                negative_threshold: float = 0.1,
                 iters: int = 5,
                 store: bool = False,
                 store_path: str = None):
@@ -79,7 +80,7 @@ def test_prompt(checkpoint,
             final_mask = np.zeros_like(gt_mask.cpu().numpy())
             for iter in range(iters):
                 pred_masks, iou_predictions, low_res_masks, points, labels = predictor.predict_torch(
-                    threshold=threshold,
+                    threshold=(positive_threshold, negative_threshold),
                     mask_input=mask_input,
                     multimask_output=False,
                 )
@@ -148,7 +149,8 @@ def parse_args():
     parser.add_argument('ckpt', type=str, help="Model checkpoint")
     parser.add_argument('config', type=str, help="Model config")
     parser.add_argument('--path', type=str, help="Path to test folder")
-    parser.add_argument('--threshold', type=float, default=0.1)
+    parser.add_argument('--positive', type=float, default=0.1)
+    parser.add_argument('--negative', type=float, default=0.1)
     parser.add_argument('--iters', type=int, default=5, help="Number of prediction iteration")
     parser.add_argument('--store', action="store_true")
     parser.add_argument('--store_path', type=str, default=None, required=False)
@@ -162,7 +164,8 @@ if __name__ == '__main__':
     test_prompt(args.ckpt,
                 args.config,
                 args.path,
-                args.threshold,
+                args.positive,
+                args.negative,
                 args.iters,
                 args.store,
                 args.store_path)

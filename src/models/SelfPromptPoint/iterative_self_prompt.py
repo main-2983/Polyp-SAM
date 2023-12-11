@@ -64,7 +64,8 @@ class IterativePointPrompt(nn.Module):
 
     def decode_prediction(self,
                           pred: torch.Tensor,
-                          threshold: float = 0.5):
+                          positive_threshold: float = 0.5,
+                          negative_threshold: float = 0.5):
         """
         Convert prediction to point and label
         Single image prediction, don't use on batch size > 1
@@ -81,8 +82,9 @@ class IterativePointPrompt(nn.Module):
 
         pred = pred.sigmoid()
         pred = pred.permute(0, 2, 3, 1).view(-1, 2) # (H * W, 2)
-        selected_mask = torch.where(pred >= threshold, True, False) # (H * W, 2)
+        selected_mask = torch.where(pred >= positive_threshold, True, False) # (H * W, 2)
         selected_positives = positive_priors[selected_mask[:, 0]] # (num_selected_pos, 2)
+        selected_mask = torch.where(pred >= negative_threshold, True, False)
         selected_negatives = negative_priors[selected_mask[:, 1]] # (num_selected_neg, 2)
         positive_labels = torch.ones((selected_positives.shape[0], ),
                                      dtype=torch.long, device=device) # (num_selected_pos, )
@@ -230,7 +232,7 @@ class IterativeSelfPredictor(SamPredictor):
     @torch.no_grad()
     def predict_torch(
         self,
-        threshold: float = 0.5,
+        threshold: Tuple[float, float] = [0.5, 0.5],
         mask_input: Optional[torch.Tensor] = None,
         multimask_output: bool = False,
         return_logits: bool = False,
@@ -261,7 +263,7 @@ class IterativeSelfPredictor(SamPredictor):
         point_pred = self.model.point_prompt_module(
             self.features, dense_embeddings)
         point_coords, labels = self.model.point_prompt_module.decode_prediction(
-            point_pred, threshold)
+            point_pred, threshold[0], threshold[1])
         points = (point_coords, labels)
 
         # Embed prompts
