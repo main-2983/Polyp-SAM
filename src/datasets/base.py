@@ -100,8 +100,8 @@ class PromptBaseDataset(Dataset):
             box_prompts = np.zeros(boxes.shape)
 
         # To Tensor
-        image = ToTensor()(image)
-        mask = ToTensor()(masks) # (B, num_box, H, W)
+        image = ToTensor()(image) # (3, H, W)
+        mask = ToTensor()(masks) # (num_box, H, W)
         task_prompts = torch.as_tensor([self.task_number], dtype=torch.int)
         point_prompts = torch.as_tensor(point_prompts, dtype=torch.float) # (num_box, points_per_box, 2)
         point_labels = torch.as_tensor(point_labels, dtype=torch.int) # (num_box, points_per_box)
