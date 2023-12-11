@@ -82,7 +82,7 @@ def main():
     sam_optimizer = config.SAM_OPTIMIZER(sam.parameters(), **config.SAM_OPTIMIZER_KWARGS)
     prompt_optimizer = config.PROMPT_OPTIMIZER(prompt_module.parameters(), **config.PROMPT_OPTIMIZER_KWARGS)
     sam_scheduler = config.SAM_SCHEDULER(sam_optimizer, **config.SAM_SCHEDULER_KWARGS)
-    prompt_scheduler = config.PROMPT_SCHEDULER(prompt_optimizer, **config.PROMPT_OPTIMIZER_KWARGS)
+    prompt_scheduler = config.PROMPT_SCHEDULER(prompt_optimizer, **config.PROMPT_SCHEDULER_KWARGS)
 
     model, sam_optimizer, prompt_optimizer, train_loader = accelerator.prepare(
         model, sam_optimizer, prompt_optimizer, train_loader
