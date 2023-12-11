@@ -184,7 +184,7 @@ class IterativeSelfPromptSAM(PolypSAM):
             multimask_output=multimask_output,
         )
         # Self-prompt
-        point_pred = self.point_prompt_module(image_embedding, dense_embeddings)
+        point_pred = self.point_prompt_module(image_embedding.detach(), dense_embeddings.detach())
 
         return low_res_masks, iou_predictions, point_pred, image_embedding
 
@@ -200,7 +200,7 @@ class IterativeSelfPredictor(SamPredictor):
 
     def predict(
         self,
-        threshold: float = 0.5,
+        threshold: Tuple[float, float] = [0.5, 0.5],
         mask_input: Optional[np.ndarray] = None,
         multimask_output: bool = True,
         return_logits: bool = False,
