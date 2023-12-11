@@ -1,8 +1,11 @@
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, Optional
 
 import torch
 import torch.nn as nn
+import numpy as np
 
+from segment_anything import SamPredictor
+from segment_anything.utils.transforms import ResizeLongestSide
 from segment_anything.modeling.common import LayerNorm2d
 
 from src.models.polypSAM import PolypSAM
@@ -58,6 +61,40 @@ class IterativePointPrompt(nn.Module):
         pred = torch.sum(pred, dim=0, keepdim=True)
 
         return pred
+
+    def decode_prediction(self,
+                          pred: torch.Tensor,
+                          threshold: float = 0.5):
+        """
+        Convert prediction to point and label
+        Single image prediction, don't use on batch size > 1
+        Args:
+            pred (Tensor): of shape (1, 2, H, W)
+        """
+        _, _, H, W = pred.shape
+        device = pred.device
+        priors_generator = PointGenerator()
+        positive_priors = priors_generator.grid_points(
+            (H, W), stride=self.stride, device=device) # (H * W, 2)
+        negative_priors = priors_generator.grid_points(
+            (H, W), stride=self.stride, device=device) # (H * W, 2)
+
+        pred = pred.sigmoid()
+        pred = pred.permute(0, 2, 3, 1).view(-1, 2) # (H * W, 2)
+        selected_mask = torch.where(pred >= threshold, True, False) # (H * W, 2)
+        selected_positives = positive_priors[selected_mask[:, 0]] # (num_selected_pos, 2)
+        selected_negatives = negative_priors[selected_mask[:, 1]] # (num_selected_neg, 2)
+        positive_labels = torch.ones((selected_positives.shape[0], ),
+                                     dtype=torch.long, device=device) # (num_selected_pos, )
+        negative_labels = torch.zeros((selected_negatives.shape[0], ),
+                                      dtype=torch.long, device=device) # (num_selected_neg, )
+
+        selected_points = torch.cat([selected_positives, selected_negatives],
+                                    dim=0) # (num_selected, 2)
+        selected_labels = torch.cat([positive_labels, negative_labels],
+                                    dim=0) # (num_selected, )
+
+        return selected_points.unsqueeze(0), selected_labels.unsqueeze(0) # Expand num_box dim
 
     def prepare_for_loss(self,
                          pred: torch.Tensor,
@@ -149,32 +186,101 @@ class IterativeSelfPromptSAM(PolypSAM):
 
         return low_res_masks, iou_predictions, point_pred, image_embedding
 
+
+class IterativeSelfPredictor(SamPredictor):
+    def __init__(self,
+                 *args,
+                 model: IterativeSelfPromptSAM):
+        super(IterativeSelfPredictor, self).__init__(*args)
+        self.model = model
+        self.transform = ResizeLongestSide(self.model.image_encoder.img_size)
+        self.reset_image()
+
+    def predict(
+        self,
+        threshold: float = 0.5,
+        mask_input: Optional[np.ndarray] = None,
+        multimask_output: bool = True,
+        return_logits: bool = False,
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        if not self.is_image_set:
+            raise RuntimeError("An image must be set with .set_image(...) before mask prediction.")
+
+        # Transform input prompts
+        mask_input_torch = None
+
+        if mask_input is not None:
+            mask_input_torch = torch.as_tensor(mask_input, dtype=torch.float, device=self.device)
+            mask_input_torch = mask_input_torch[None, :, :, :]
+
+        masks, iou_predictions, low_res_masks, points, labels = self.predict_torch(
+            threshold,
+            mask_input_torch,
+            multimask_output,
+            return_logits=return_logits,
+        )
+
+        masks_np = masks[0].detach().cpu().numpy()
+        iou_predictions_np = iou_predictions[0].detach().cpu().numpy()
+        low_res_masks_np = low_res_masks[0].detach().cpu().numpy()
+        points_np = points[0].detach().cpu().numpy()
+        labels_np = labels[0].detach().cpu().numpy()
+        return masks_np, iou_predictions_np, low_res_masks_np, points_np, labels_np
+
     @torch.no_grad()
-    def get_target(self,
-                   point_prompt: Tuple[torch.Tensor, torch.Tensor],
-                   img_embedding: torch.Tensor):
+    def predict_torch(
+        self,
+        threshold: float = 0.5,
+        mask_input: Optional[torch.Tensor] = None,
+        multimask_output: bool = False,
+        return_logits: bool = False,
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
-        Convert the point prompt for the next iteration into label assignment mask
-        Args:
-            point_prompt: Tuple of point and label. Point has shape (num_box, point_per_box, 2),
-                                                    Label has shape (num_box, point_per_box)
+        Returns:
+            masks (Tensor): output masks of shape (1, C, H, W) where C is the number of
+                masks, (H, W) is the original image size
+            iou_predictions (Tensor): of shape (B, C) containing the model's
+                predictions for the quality of each mask
+            low_res_mask (Tensor): of shape (1, C, H, W) where C is the
+                number of masks, H=W=256. These low res logits can be passed
+                to a subsequent iteration as mask input
+            point_coords (Tensor): of shape (1, num_points, 2)
+            labels (Tensor): of shape (1, num_points)
         """
-        points = point_prompt[0]
-        labels = point_prompt[1]
-        device = img_embedding.device
-        featmap_size = img_embedding.shape[-2:]
-        num_priors = featmap_size[0] * featmap_size[1]
-        # Assigned with 0
-        assigned_gt_inds = torch.full((num_priors, 2), 0, device=device) # (num_priors, 2)
 
-        for (point, label) in zip(points, labels):
-            point = point / self.stride # scale the point to featmap size
-            point[:, 0] = torch.clamp(point[:, 0], min=0, max=featmap_size[0])
-            point[:, 1] = torch.clamp(point[:, 1], min=0, max=featmap_size[1])
-            # Map point to index
-            index = [torch.floor((torch.ceil(p[1]) - 1) * featmap_size[1] + p[0]).to(torch.int) for p in point]
-            assert len(index) == len(label)
-            for i in range(len(index)):
-                assigned_gt_inds[index[i], label[i]] = 1
+        if not self.is_image_set:
+            raise RuntimeError("An image must be set with .set_image(...) before mask prediction.")
 
-        return assigned_gt_inds
+        # Get dense emb
+        sparse_embeddings, dense_embeddings = self.model.prompt_encoder(
+            masks=mask_input)
+
+        # Predict points
+        point_pred = self.model.point_prompt_module(
+            self.features, dense_embeddings)
+        point_coords, labels = self.model.point_prompt_module.decode_prediction(
+            point_pred, threshold)
+        points = (point_coords, labels)
+
+        # Embed prompts
+        sparse_embeddings, dense_embeddings = self.model.prompt_encoder(
+            points=points,
+            masks=mask_input
+        )
+
+        # Predict masks
+        low_res_masks, iou_predictions = self.model.mask_decoder(
+            image_embeddings=self.features,
+            image_pe=self.model.prompt_encoder.get_dense_pe(),
+            sparse_prompt_embeddings=sparse_embeddings,
+            dense_prompt_embeddings=dense_embeddings,
+            multimask_output=multimask_output,
+        )
+
+        # Upscale the masks to the original image resolution
+        masks = self.model.postprocess_masks(low_res_masks, self.input_size, self.original_size)
+
+        if not return_logits:
+            masks = masks > self.model.mask_threshold
+
+        return masks, iou_predictions, low_res_masks, point_coords, labels
