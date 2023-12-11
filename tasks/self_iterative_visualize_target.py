@@ -105,7 +105,7 @@ def main():
                 for i in range(selected_masks.shape[0]):
                     axis[i].imshow(selected_masks[i, 0, :, :].cpu().numpy())
             else:
-                axis.imshow(selected_masks[i, 0, :, :].cpu().numpy())
+                axis.imshow(selected_masks[0, 0, :, :].cpu().numpy())
             plt.axis('off')
             plt.savefig(f"{save_path}/mask_iter_{round_i}.png")
             plt.close()
