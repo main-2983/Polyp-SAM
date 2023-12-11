@@ -267,6 +267,7 @@ class IterativeSelfPredictor(SamPredictor):
         # Embed prompts
         sparse_embeddings, dense_embeddings = self.model.prompt_encoder(
             points=points,
+            boxes=None,
             masks=mask_input
         )
 
