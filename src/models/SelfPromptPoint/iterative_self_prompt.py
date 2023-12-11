@@ -83,9 +83,9 @@ class IterativePointPrompt(nn.Module):
         pred = pred.sigmoid()
         pred = pred.permute(0, 2, 3, 1).view(-1, 2) # (H * W, 2)
         selected_mask = torch.where(pred >= positive_threshold, True, False) # (H * W, 2)
-        selected_positives = positive_priors[selected_mask[:, 0]] # (num_selected_pos, 2)
+        selected_positives = positive_priors[selected_mask[:, 1]] # (num_selected_pos, 2)
         selected_mask = torch.where(pred >= negative_threshold, True, False)
-        selected_negatives = negative_priors[selected_mask[:, 1]] # (num_selected_neg, 2)
+        selected_negatives = negative_priors[selected_mask[:, 0]] # (num_selected_neg, 2)
         positive_labels = torch.ones((selected_positives.shape[0], ),
                                      dtype=torch.long, device=device) # (num_selected_pos, )
         negative_labels = torch.zeros((selected_negatives.shape[0], ),
