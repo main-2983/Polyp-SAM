@@ -83,6 +83,9 @@ def main():
             mask_input = selected_masks
 
             # Plot
+            save_path = f"{args.store_path}/{name}"
+            if not os.path.exists(save_path):
+                os.makedirs(save_path)
             fig, axis = plt.subplots(1, 5)
             axis[0].imshow(mask[0].cpu().numpy())
             point_target = point_target.view(64, 64, -1)
@@ -91,16 +94,17 @@ def main():
             positive_pred = point_pred[0, 1, ...].cpu().numpy()
             negative_pred = point_pred[0, 0, ...].cpu().numpy()
             plots = (positive_target, negative_target, positive_pred, negative_pred)
+
             for i in range(1, 5):
                 axis[i].imshow(plots[i - 1])
             plt.axis('off')
-            plt.savefig(f"{args.store_path}/{name}/targets_iter_{round_i}.png")
+            plt.savefig(f"{save_path}/targets_iter_{round_i}.png")
             plt.close()
             fig, axis = plt.subplots(1, selected_masks.shape[0])
             for i in range(selected_masks.shape[0]):
                 axis[i].imshow(selected_masks[i, 0, :, :].cpu().numpy())
             plt.axis('off')
-            plt.savefig(f"{args.store_path}/{name}/mask_iter_{round_i}.png")
+            plt.savefig(f"{save_path}/mask_iter_{round_i}.png")
             plt.close()
 
 
