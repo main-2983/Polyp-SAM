@@ -101,8 +101,11 @@ def main():
             plt.savefig(f"{save_path}/targets_iter_{round_i}.png")
             plt.close()
             fig, axis = plt.subplots(1, selected_masks.shape[0])
-            for i in range(selected_masks.shape[0]):
-                axis[i].imshow(selected_masks[i, 0, :, :].cpu().numpy())
+            if selected_masks.shape[0] > 1:
+                for i in range(selected_masks.shape[0]):
+                    axis[i].imshow(selected_masks[i, 0, :, :].cpu().numpy())
+            else:
+                axis.imshow(selected_masks[i, 0, :, :].cpu().numpy())
             plt.axis('off')
             plt.savefig(f"{save_path}/mask_iter_{round_i}.png")
             plt.close()
