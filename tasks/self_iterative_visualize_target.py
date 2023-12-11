@@ -70,7 +70,7 @@ def main():
                 "image_size": image_size
             }
             low_res_masks, iou_predictions, point_pred, img_emb = model(model_input)
-            point_target, flatten_point_pred = model.module.point_prompt_module.prepare_for_loss(
+            point_target, flatten_point_pred = model.point_prompt_module.prepare_for_loss(
                 point_pred, point, img_emb
             )
             # Select the mask with highest IoU for each object
