@@ -89,6 +89,7 @@ def main():
                 os.makedirs(save_path)
             fig, axis = plt.subplots(1, 5)
             axis[0].imshow(mask[0].cpu().numpy())
+            plt.axis('off')
             point_target = point_target.view(64, 64, -1)
             positive_target = point_target[..., 1].cpu().numpy() # (64, 64)
             negative_target = point_target[..., 0].cpu().numpy() # (64, 64)
@@ -98,16 +99,17 @@ def main():
 
             for i in range(1, 5):
                 axis[i].imshow(plots[i - 1])
-            plt.axis('off')
+                plt.axis('off')
             plt.savefig(f"{save_path}/targets_iter_{round_i}.png")
             plt.close()
             fig, axis = plt.subplots(1, selected_masks.shape[0])
             if selected_masks.shape[0] > 1:
                 for i in range(selected_masks.shape[0]):
                     axis[i].imshow(selected_masks[i, 0, :, :].cpu().numpy())
+                    plt.axis('off')
             else:
                 axis.imshow(selected_masks[0, 0, :, :].cpu().numpy())
-            plt.axis('off')
+                plt.axis('off')
             plt.savefig(f"{save_path}/mask_iter_{round_i}.png")
             plt.close()
 
