@@ -155,13 +155,16 @@ class IterativePointPrompt(nn.Module):
 class IterativeSinglePointPrompt(IterativePointPrompt):
     def __init__(self,
                  *args,
+                 positive: bool = True,
                  **kwargs):
         super(IterativeSinglePointPrompt, self).__init__(*args, **kwargs)
         self.pred = nn.Conv2d(self.feat_channels, 1, kernel_size=1)
+        self.positive = positive
 
     def decode_prediction(self,
                           pred: torch.Tensor,
-                          threshold: float = 0.5):
+                          positive_threshold: float = 0.5,
+                          negative_threshold: float = 0.5):
         """
         Convert prediction to point and label
         Single image prediction, don't use on batch size > 1
@@ -171,15 +174,23 @@ class IterativeSinglePointPrompt(IterativePointPrompt):
         _, _, H, W = pred.shape
         device = pred.device
         priors_generator = PointGenerator()
-        priors = priors_generator.grid_points(
+        positive_priors = priors_generator.grid_points(
+            (H, W), stride=self.stride, device=device) # (H * W, 2)
+        negative_priors = priors_generator.grid_points(
             (H, W), stride=self.stride, device=device) # (H * W, 2)
 
         pred = pred.sigmoid()
-        pred = pred.permute(0, 2, 3, 1).flatten() # (H * W, )
-        selected_mask = torch.where(pred >= threshold, True, False) # (H * W, )
-        selected_priors = priors[selected_mask] # (num_selected_pos, 2)
-        labels = torch.ones((selected_priors.shape[0], ),
-                            dtype=torch.long, device=device)
+        pred = pred.permute(0, 2, 3, 1).flatten() # (H * W,)
+        if self.positive:
+            selected_mask = torch.where(pred >= positive_threshold, True, False) # (H * W,)
+            selected_priors = positive_priors[selected_mask] # (num_selected_pos, 2)
+            labels = torch.ones((selected_priors.shape[0],),
+                                dtype=torch.long, device=device)
+        else:
+            selected_mask = torch.where(pred >= negative_threshold, True, False)
+            selected_priors = negative_priors[selected_mask] # (num_selected_neg, 2)
+            labels = torch.zeros((selected_priors.shape[0],),
+                                dtype=torch.long, device=device)
 
         return selected_priors.unsqueeze(0), labels.unsqueeze(0) # Expand num_box dim
 
