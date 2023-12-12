@@ -61,7 +61,6 @@ def main():
     is_distributed = accelerator.distributed_type != accelerator.distributed_type.NO
 
     # Model
-    sam = config.sam
     prompt_module = config.prompt_module
     model = config.model
     mask_threshold = model.mask_threshold
@@ -74,18 +73,14 @@ def main():
     )
 
     # Loss
-    loss_fn = config.LOSS_FN
     self_prompt_loss = config.SELF_PROMPT_LOSS
-    iou_loss = config.IOU_LOSS
 
     # Optimizer
-    sam_optimizer = config.SAM_OPTIMIZER(sam.parameters(), **config.SAM_OPTIMIZER_KWARGS)
     prompt_optimizer = config.PROMPT_OPTIMIZER(prompt_module.parameters(), **config.PROMPT_OPTIMIZER_KWARGS)
-    sam_scheduler = config.SAM_SCHEDULER(sam_optimizer, **config.SAM_SCHEDULER_KWARGS)
     prompt_scheduler = config.PROMPT_SCHEDULER(prompt_optimizer, **config.PROMPT_SCHEDULER_KWARGS)
 
-    model, sam_optimizer, prompt_optimizer, train_loader = accelerator.prepare(
-        model, sam_optimizer, prompt_optimizer, train_loader
+    model, prompt_optimizer, train_loader = accelerator.prepare(
+        model, prompt_optimizer, train_loader
     )
 
     device = model.device
@@ -162,22 +157,11 @@ def main():
                             point_target, flatten_point_pred = model.point_prompt_module.prepare_for_loss(
                                 point_pred, point, img_emb
                             )
-                        # Calculate ious with the selected_masks
-                        gt_ious = []
-                        for i in range(upscaled_masks.shape[0]):
-                            # transform logit mask to binary mask
-                            m_pred = upscaled_masks[i].clone().detach() > mask_threshold # (1, 256, 256)
-                            gt_ious.append(iou_torch(gt_mask[i] > 0.5, m_pred[0]))
-                        gt_ious = torch.stack(gt_ious, dim=0)
-                        gt_ious = torch.unsqueeze(gt_ious, dim=1) # (num_objects, 1)
 
                         with accelerator.autocast():
-                            loss = loss_fn(upscaled_masks, gt_mask[:, None, :, :])  # expand channel dim
-                            loss += iou_loss(selected_ious, gt_ious)
                             prompt_loss = self_prompt_loss(flatten_point_pred, point_target)
-                            total_loss = loss + prompt_loss
-                        accelerator.backward(total_loss)
-                        round_loss += total_loss.item()
+                        accelerator.backward(prompt_loss)
+                        round_loss += prompt_loss.item()
 
                         selected_masks = selected_masks.detach() # Detach from the computation grad of next round
 
@@ -245,28 +229,21 @@ def main():
                             mask_input = selected_masks
                     # End of all round
                     batch_loss.append(round_loss)
-                    sam_losses.append(loss)
-                    prompt_losses.append(prompt_loss)
 
                 # After batch
-                sam_optimizer.step()
                 prompt_optimizer.step()
-                sam_optimizer.zero_grad()
                 prompt_optimizer.zero_grad()
                 batch_loss = sum(batch_loss) / batch_size
                 epoch_losses.append(batch_loss)
 
         # After epoch
-        sam_scheduler.step()
         prompt_scheduler.step()
         epoch_loss = sum(epoch_losses) / len(epoch_losses)
-        sam_loss = sum(sam_losses) / len(sam_losses)
-        prompt_l = sum(prompt_losses) / len(prompt_losses)
-        logger.info(f"Epoch: {epoch} \t Total Loss: {epoch_loss} \t SAM Loss: {sam_loss} \t Prompt Loss: {prompt_l}",
+        logger.info(f"Epoch: {epoch} \t Total Loss: {epoch_loss}",
                     main_process_only=True)
         if accelerator.is_main_process:
             with open(f"{save_folder}/exp.log", 'a') as f:
-                f.write(f"Epoch: {epoch} \t Total Loss: {epoch_loss} \t SAM Loss: {sam_loss} \t Prompt Loss: {prompt_l} \n")
+                f.write(f"Epoch: {epoch} \t Loss: {epoch_loss} \n")
 
         # Saving
         if epoch >= config.EPOCH_TO_SAVE and epoch % config.SAVE_FREQUENCY == 0:
