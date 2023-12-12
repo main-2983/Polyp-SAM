@@ -18,10 +18,12 @@ class IterativePointPrompt(nn.Module):
                  num_convs: int = 3,
                  in_channels: int = 256,
                  feat_channels: int = 128,
+                 kernel_size: int = 3,
                  stride: int = 16):
         super(IterativePointPrompt, self).__init__()
 
         self.stride = stride
+        self.feat_channels = feat_channels
         convs = []
         for i in range(num_convs):
             in_chn = in_channels if i == 0 else feat_channels
@@ -29,8 +31,8 @@ class IterativePointPrompt(nn.Module):
                 ConvModule(
                     in_channels=in_chn,
                     out_channels=feat_channels,
-                    kernel_size=3,
-                    padding=1,
+                    kernel_size=kernel_size,
+                    padding=kernel_size // 2,
                     norm=LayerNorm2d(feat_channels),
                     activation=nn.ReLU(inplace=True)
                 )
@@ -146,6 +148,89 @@ class IterativePointPrompt(nn.Module):
             assert len(index) == len(label)
             for i in range(len(index)):
                 assigned_gt_inds[index[i], label[i]] = 1
+
+        return assigned_gt_inds
+
+
+class IterativeSinglePointPrompt(IterativePointPrompt):
+    def __init__(self,
+                 *args,
+                 **kwargs):
+        super(IterativeSinglePointPrompt, self).__init__(*args, **kwargs)
+        self.pred = nn.Conv2d(self.feat_channels, 1, kernel_size=1)
+
+    def decode_prediction(self,
+                          pred: torch.Tensor,
+                          threshold: float = 0.5):
+        """
+        Convert prediction to point and label
+        Single image prediction, don't use on batch size > 1
+        Args:
+            pred (Tensor): of shape (1, 1, H, W)
+        """
+        _, _, H, W = pred.shape
+        device = pred.device
+        priors_generator = PointGenerator()
+        priors = priors_generator.grid_points(
+            (H, W), stride=self.stride, device=device) # (H * W, 2)
+
+        pred = pred.sigmoid()
+        pred = pred.permute(0, 2, 3, 1).flatten() # (H * W, )
+        selected_mask = torch.where(pred >= threshold, True, False) # (H * W, )
+        selected_priors = priors[selected_mask] # (num_selected_pos, 2)
+        labels = torch.ones((selected_priors.shape[0], ),
+                            dtype=torch.long, device=device)
+
+        return selected_priors.unsqueeze(0), labels.unsqueeze(0) # Expand num_box dim
+
+    def prepare_for_loss(self,
+                         pred: torch.Tensor,
+                         point_prompt: Tuple[torch.Tensor, torch.Tensor],
+                         img_embedding: torch.Tensor):
+        """
+        Prepare the loss component based on the features extracted by the head
+        and the next-iteration prompts
+        Args:
+            pred (Tensor): prediction of shape (1, 1, H, W)
+            point_prompt (Tuple) contains:
+                + point of shape (num_box, point_per_box, 2)
+                + label of shape (num_box, point_per_box)
+            img_embedding (Tensor): output embedding of shape (1, 256, H, W)
+        """
+        target = self.get_target_single(
+            point_prompt, img_embedding
+        ) # (H * W, 2)
+        flatten_pred = pred.permute(0, 2, 3, 1).view(-1, 1).contiguous() # (H * W, 1)
+
+        return target, flatten_pred
+
+    @torch.no_grad()
+    def get_target_single(self,
+                          point_prompt: Tuple[torch.Tensor, torch.Tensor],
+                          img_embedding: torch.Tensor):
+        """
+        Convert the point prompt for the next iteration into label assignment mask
+        Args:
+            point_prompt: Tuple of point and label. Point has shape (num_box, point_per_box, 2),
+                                                    Label has shape (num_box, point_per_box)
+        """
+        points = point_prompt[0]
+        labels = point_prompt[1]
+        device = img_embedding.device
+        featmap_size = img_embedding.shape[-2:]
+        num_priors = featmap_size[0] * featmap_size[1]
+        # Assigned with 0
+        assigned_gt_inds = torch.full((num_priors, 1), 0, device=device) # (num_priors, 1)
+
+        for (point, label) in zip(points, labels):
+            point = point / self.stride # scale the point to featmap size
+            point[:, 0] = torch.clamp(point[:, 0], min=0, max=featmap_size[0])
+            point[:, 1] = torch.clamp(point[:, 1], min=0, max=featmap_size[1])
+            # Map point to index
+            index = [torch.floor((torch.ceil(p[1]) - 1) * featmap_size[1] + p[0]).to(torch.int) for p in point]
+            assert len(index) == len(label)
+            for i in range(len(index)):
+                assigned_gt_inds[index[i]] = 1
 
         return assigned_gt_inds
 
