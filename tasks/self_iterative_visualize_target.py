@@ -59,6 +59,7 @@ def main():
         image_np = image_np.cpu().numpy().transpose(1, 2, 0)
 
         # Round 0 input
+        model.forward_embedding(image)
         mask_input = None
         point = (point_prompt, point_label)
         for round_i in range(args.round):

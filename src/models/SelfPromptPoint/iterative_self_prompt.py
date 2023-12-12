@@ -158,6 +158,7 @@ class IterativeSelfPromptSAM(PolypSAM):
         super(IterativeSelfPromptSAM, self).__init__(*args, **kwargs)
 
         self.point_prompt_module = point_prompt_module
+        self.image_embedding = None
 
     def forward(self,
                 input: Dict[str, Any],
@@ -169,7 +170,10 @@ class IterativeSelfPromptSAM(PolypSAM):
         image = input.get("image")
 
         # Normal SAM forward
-        image_embedding = self.image_encoder(image[None])
+        if self.image_embedding is None:
+            image_embedding = self.image_encoder(image[None])
+        else:
+            image_embedding = self.image_embedding
         points = input.get("point_prompt")
         sparse_embeddings, dense_embeddings = self.prompt_encoder(
             points=points,
@@ -187,6 +191,9 @@ class IterativeSelfPromptSAM(PolypSAM):
         point_pred = self.point_prompt_module(image_embedding.detach(), dense_embeddings.detach())
 
         return low_res_masks, iou_predictions, point_pred, image_embedding
+    
+    def forward_embedding(self, image):
+        self.image_embedding = self.image_encoder(image[None])
 
 
 class IterativeSelfPredictor(SamPredictor):
