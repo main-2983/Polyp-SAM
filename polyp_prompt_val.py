@@ -97,6 +97,7 @@ def test_prompt(checkpoint,
                 final_mask = pred_masks[0]
                 for i in range(1, len(pred_masks)):
                     final_mask = np.logical_or(final_mask, pred_masks[i])
+                mask_input = logits
 
             gt_mask = masks[0].cpu().numpy()
 
