@@ -91,6 +91,12 @@ def main():
             axis[0].imshow(mask[0].cpu().numpy())
             axis[0].axis('off')
             point_target = point_target.view(64, 64, -1)
+            if point_target.shape[-1] == 1: # Single label
+                pad_val = torch.zeros_like(point_target[:, :, 0])
+                point_target = torch.repeat_interleave(point_target, 2, dim=-1) # Expand to (64, 64, 2)
+                point_target[:, :, 1] = pad_val # Set the expanded axis to all 0s
+                point_pred = torch.repeat_interleave(point_pred, 2, dim=1) # Expand to (1, 2, 64, 64)
+                point_pred[0, 1, ...] = pad_val
             positive_target = point_target[..., 1].cpu().numpy() # (64, 64)
             negative_target = point_target[..., 0].cpu().numpy() # (64, 64)
             positive_pred = point_pred[0, 1, ...].cpu().numpy()

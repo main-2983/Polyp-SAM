@@ -210,7 +210,7 @@ class IterativeSinglePointPrompt(IterativePointPrompt):
         """
         target = self.get_target_single(
             point_prompt, img_embedding
-        ) # (H * W, 2)
+        ) # (H * W, 1)
         flatten_pred = pred.permute(0, 2, 3, 1).view(-1, 1).contiguous() # (H * W, 1)
 
         return target, flatten_pred
