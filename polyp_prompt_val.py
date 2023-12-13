@@ -21,6 +21,7 @@ def test_prompt(checkpoint,
                 test_folder,
                 use_box: bool = False,
                 use_point: bool = True,
+                iters: int = 1,
                 store: bool = False,
                 store_path: str = None):
     module = importlib.import_module(config)
@@ -80,17 +81,23 @@ def test_prompt(checkpoint,
 
             predictor.set_torch_image(images[None], image_size)
 
-            pred_masks, scores, logits = predictor.predict_torch(
-                point_coords=point_prompts if use_point else None,
-                point_labels=point_labels if use_point else None,
-                boxes=box_prompts if use_box else None,
-                multimask_output=False
-            )
+            # Round 0 input
+            mask_input = None
+            final_mask = np.zeros_like(masks[0].cpu().numpy())
+            for iter in range(iters):
+                pred_masks, scores, logits = predictor.predict_torch(
+                    point_coords=point_prompts if use_point else None,
+                    point_labels=point_labels if use_point else None,
+                    boxes=box_prompts if use_box else None,
+                    mask_input=mask_input,
+                    multimask_output=False
+                )
 
-            pred_masks = pred_masks[0].detach().cpu().numpy() # (num_masks, H, W)
-            final_mask = pred_masks[0]
-            for i in range(1, len(pred_masks)):
-                final_mask = np.logical_or(final_mask, pred_masks[i])
+                pred_masks = pred_masks[0].detach().cpu().numpy() # (num_masks, H, W)
+                final_mask = pred_masks[0]
+                for i in range(1, len(pred_masks)):
+                    final_mask = np.logical_or(final_mask, pred_masks[i])
+
             gt_mask = masks[0].cpu().numpy()
 
             gts.append(gt_mask)
@@ -142,6 +149,7 @@ def parse_args():
     parser.add_argument('--path', type=str, help="Path to test folder")
     parser.add_argument('--use-box', action="store_true")
     parser.add_argument('--use-point', action="store_true")
+    parser.add_argument('--iters', type=int, default=1)
     parser.add_argument('--store', action="store_true")
     parser.add_argument('--store_path', type=str, default=None, required=False)
     args = parser.parse_args()
@@ -156,5 +164,6 @@ if __name__ == '__main__':
                 args.path,
                 args.use_box,
                 args.use_point,
+                args.iters,
                 args.store,
                 args.store_path)
