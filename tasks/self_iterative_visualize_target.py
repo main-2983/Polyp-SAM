@@ -12,7 +12,7 @@ package = os.path.join(os.path.dirname(sys.path[0]), "src")
 sys.path.append(os.path.dirname(package))
 from src.models.SelfPromptPoint import IterativeSelfPromptSAM
 from src.plot_utils import show_box
-from src.datasets import UnNormalize
+from src.datasets import UnNormalize, uniform_sample_points
 
 
 def parse_args():
@@ -39,8 +39,9 @@ def main():
         state_dict = torch.load(args.ckpt, map_location="cpu")
         model.load_state_dict(state_dict)
         model.eval()
-    device = "cpu"
+    device = "cuda"
     model = model.to(device)
+    mask_threshold = model.mask_threshold
 
     os.makedirs(f"{args.store_path}", exist_ok=True)
 
@@ -51,12 +52,18 @@ def main():
         name = os.path.splitext(name)[0]
         sample = dataset[i]
         image = sample[0].to(device)  # (C, H, W)
-        mask = sample[1].to(device)  # (C, H, W)
+        gt_mask = sample[1].to(device)  # (C, H, W)
         point_prompt = sample[2].to(device)  # (num_boxes, points_per_box, 2)
         point_label = sample[3].to(device)  # (num_boxes, points_per_box)
         image_size = (dataset.image_size, dataset.image_size)
         image_np = UnNormalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])(image)
         image_np = image_np.cpu().numpy().transpose(1, 2, 0)
+        gt = gt_mask > 0.5  # Cuz resizing image sucks
+        single_gt_mask = gt[0, ...].clone()  # (1024, 1024)
+        for i in range(1, gt_mask.shape[0]):
+            single_gt_mask = torch.logical_or(single_gt_mask, gt[i, ...])  # (1024, 1024)
+        single_gt_mask = single_gt_mask.long() # (1024, 1024)
+        mask_np = single_gt_mask.cpu().numpy()
 
         # Round 0 input
         model.forward_embedding(image)
@@ -81,6 +88,68 @@ def main():
                 selected_masks = torch.concatenate([selected_masks,
                                                     low_res_masks[i:i + 1, max_idx[i]:max_idx[i] + 1, ...]],
                                                    dim=0)
+
+            # Prepare next round target
+            upscaled_masks = model.postprocess_masks(
+                selected_masks, image.shape[-2:], image_size
+            )
+
+            # Step 1: convert mask to binary
+            upscaled_masks = upscaled_masks > mask_threshold
+            gt = gt_mask > 0.5  # Cuz resizing image sucks
+            # Step 2: OR all mask to reduce to C=1
+            single_upscale_mask = upscaled_masks[0, 0, ...].clone()  # (1024, 1024)
+            for i in range(1, upscaled_masks.shape[0]):
+                single_upscale_mask = torch.logical_or(single_upscale_mask,
+                                                       upscaled_masks[i, 0, ...])  # (1024, 1024)
+            single_upscale_mask = single_upscale_mask.long()
+            # Step 2: Find the error region
+            # Error_mask will have value of:
+            # -1: On false positive pixel (predict mask but wrong)
+            # 0: On true positive and true negative pixel
+            # 1: On false negative pixel (predict none but has mask)
+            error_mask = single_gt_mask - single_upscale_mask  # (1024, 1024)
+            # Step 4: sample points
+            # Step 4.1: Separate the error mask into 2 part: The false positive and the false negative ones
+            false_positive_mask = torch.where(error_mask == -1, error_mask, 0)
+            false_positive_mask = -false_positive_mask
+            false_negative_mask = torch.where(error_mask == 1, error_mask, 0)
+            # Step 4.2: Choose a mask to sample from
+            if (np.random.rand() >= config.RATE):  # sample from false negative mask
+                mask_to_sample = false_negative_mask
+                rand = 1
+            else:
+                mask_to_sample = false_positive_mask
+                rand = -1
+            # Step 4.3: RANDOMLY Sample point from mask
+            width_point_prompt, height_point_prompt = uniform_sample_points(mask_to_sample,
+                                                                            num_points=1)
+            _point_prompt = torch.hstack([width_point_prompt, height_point_prompt])  # (1, 2)
+            if _point_prompt.shape[0] <= 0:  # can't sample any points
+                # Resample with different mask
+                if rand == 1:
+                    mask_to_sample = false_positive_mask
+                    rand = -1
+                else:
+                    mask_to_sample = false_negative_mask
+                    rand = 1
+                width_point_prompt, height_point_prompt = uniform_sample_points(mask_to_sample,
+                                                                                num_points=1)
+                _point_prompt = torch.hstack([width_point_prompt, height_point_prompt])  # (1, 2)
+                if _point_prompt.shape[0] <= 0:  # If still no points -> 100% correct mask
+                    break  # Exit the Loop early
+            _point_prompt = _point_prompt.unsqueeze(0)  # (1, 1, 2)
+            if rand == 1:  # If sampled from false negative, insert label 1
+                _point_label = torch.ones((1,))
+            else:
+                _point_label = torch.zeros((1,))
+            _point_label = _point_label.unsqueeze(0)  # (1, 1)
+
+            new_point_prompts = torch.as_tensor(_point_prompt, device=device, dtype=torch.float)
+            new_point_labels = torch.as_tensor(_point_label, device=device, dtype=torch.int)
+
+            # Step 5: Update the input for next round
+            point = (new_point_prompts, new_point_labels)
             mask_input = selected_masks
 
             # Plot
@@ -88,7 +157,7 @@ def main():
             if not os.path.exists(save_path):
                 os.makedirs(save_path)
             fig, axis = plt.subplots(1, 5)
-            axis[0].imshow(mask[0].cpu().numpy())
+            axis[0].imshow(mask_np)
             axis[0].axis('off')
             point_target = point_target.view(64, 64, -1)
             if point_target.shape[-1] == 1: # Single label
