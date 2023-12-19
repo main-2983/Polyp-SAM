@@ -381,6 +381,8 @@ class IterativeSelfPredictor(SamPredictor):
             points = (point_coords, labels)
         else:
             points = point_prompt
+            point_coords = point_prompt[0]
+            labels = point_prompt[1]
 
         # Embed prompts
         sparse_embeddings, dense_embeddings = self.model.prompt_encoder(
