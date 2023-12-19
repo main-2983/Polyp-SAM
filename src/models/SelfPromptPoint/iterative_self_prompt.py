@@ -304,6 +304,7 @@ class IterativeSelfPredictor(SamPredictor):
     def predict(
         self,
         threshold: Tuple[float, float] = [0.5, 0.5],
+        point_prompt: Optional[Tuple[np.ndarray, np.ndarray]] = None,
         mask_input: Optional[np.ndarray] = None,
         multimask_output: bool = True,
         return_logits: bool = False,
@@ -312,14 +313,22 @@ class IterativeSelfPredictor(SamPredictor):
             raise RuntimeError("An image must be set with .set_image(...) before mask prediction.")
 
         # Transform input prompts
-        mask_input_torch = None
+        mask_input_torch, point_prompt_torch = None, None
 
         if mask_input is not None:
             mask_input_torch = torch.as_tensor(mask_input, dtype=torch.float, device=self.device)
             mask_input_torch = mask_input_torch[None, :, :, :]
 
+        if point_prompt is not None:
+            point_coords = self.transform.apply_coords(point_prompt[0], self.original_size)
+            coords_torch = torch.as_tensor(point_coords, dtype=torch.float, device=self.device)
+            labels_torch = torch.as_tensor(point_prompt[1], dtype=torch.int, device=self.device)
+            coords_torch, labels_torch = coords_torch[None, :, :], labels_torch[None, :]
+            point_prompt_torch = (coords_torch, labels_torch)
+
         masks, iou_predictions, low_res_masks, points, labels = self.predict_torch(
             threshold,
+            point_prompt_torch,
             mask_input_torch,
             multimask_output,
             return_logits=return_logits,
@@ -336,6 +345,7 @@ class IterativeSelfPredictor(SamPredictor):
     def predict_torch(
         self,
         threshold: Tuple[float, float] = [0.5, 0.5],
+        point_prompt: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
         mask_input: Optional[torch.Tensor] = None,
         multimask_output: bool = False,
         return_logits: bool = False,
@@ -356,18 +366,21 @@ class IterativeSelfPredictor(SamPredictor):
         if not self.is_image_set:
             raise RuntimeError("An image must be set with .set_image(...) before mask prediction.")
 
-        # Get dense emb
-        sparse_embeddings, dense_embeddings = self.model.prompt_encoder(
-            points=None,
-            boxes=None,
-            masks=mask_input)
+        if point_prompt is None:
+            # Get dense emb
+            sparse_embeddings, dense_embeddings = self.model.prompt_encoder(
+                points=None,
+                boxes=None,
+                masks=mask_input)
 
-        # Predict points
-        point_pred = self.model.point_prompt_module(
-            self.features, dense_embeddings)
-        point_coords, labels = self.model.point_prompt_module.decode_prediction(
-            point_pred, threshold[0], threshold[1])
-        points = (point_coords, labels)
+            # Predict points
+            point_pred = self.model.point_prompt_module(
+                self.features, dense_embeddings)
+            point_coords, labels = self.model.point_prompt_module.decode_prediction(
+                point_pred, threshold[0], threshold[1])
+            points = (point_coords, labels)
+        else:
+            points = point_prompt
 
         # Embed prompts
         sparse_embeddings, dense_embeddings = self.model.prompt_encoder(
