@@ -76,11 +76,12 @@ def main():
     self_prompt_loss = config.SELF_PROMPT_LOSS
 
     # Optimizer
-    prompt_optimizer = config.PROMPT_OPTIMIZER(prompt_module.parameters(), **config.PROMPT_OPTIMIZER_KWARGS)
-    prompt_scheduler = config.PROMPT_SCHEDULER(prompt_optimizer, **config.PROMPT_SCHEDULER_KWARGS)
+    params = filter(lambda p: p.requires_grad, model.parameters())
+    optimizer = config.OPTIMIZER(params, **config.OPTIMIZER_KWARGS)
+    scheduler = config.SCHEDULER(optimizer, **config.SCHEDULER_KWARGS)
 
-    model, prompt_optimizer, train_loader = accelerator.prepare(
-        model, prompt_optimizer, train_loader
+    model, optimizer, train_loader = accelerator.prepare(
+        model, optimizer, train_loader
     )
 
     device = model.device
@@ -147,21 +148,24 @@ def main():
                             upscaled_masks = model.module.postprocess_masks(
                                 selected_masks, image.shape[-2:], image_size
                             )
-                            point_target, flatten_point_pred = model.module.point_prompt_module.prepare_for_loss(
-                                point_pred, point, img_emb
-                            )
+                            if round > 0:
+                                point_target, flatten_point_pred = model.module.point_prompt_module.prepare_for_loss(
+                                    point_pred, point, img_emb
+                                )
                         else:
                             upscaled_masks = model.postprocess_masks(
                                 selected_masks, image.shape[-2:], image_size
                             )
-                            point_target, flatten_point_pred = model.point_prompt_module.prepare_for_loss(
-                                point_pred, point, img_emb
-                            )
+                            if round > 0:
+                                point_target, flatten_point_pred = model.point_prompt_module.prepare_for_loss(
+                                    point_pred, point, img_emb
+                                )
 
-                        with accelerator.autocast():
-                            prompt_loss = self_prompt_loss(flatten_point_pred, point_target)
-                        accelerator.backward(prompt_loss)
-                        round_loss += prompt_loss.item()
+                        if round > 0:
+                            with accelerator.autocast():
+                                prompt_loss = self_prompt_loss(flatten_point_pred, point_target)
+                            accelerator.backward(prompt_loss)
+                            round_loss += prompt_loss.item()
 
                         selected_masks = selected_masks.detach() # Detach from the computation grad of next round
 
@@ -231,15 +235,15 @@ def main():
                     batch_loss.append(round_loss)
 
                 # After batch
-                prompt_optimizer.step()
-                prompt_optimizer.zero_grad()
+                optimizer.step()
+                optimizer.zero_grad()
                 batch_loss = sum(batch_loss) / batch_size
                 epoch_losses.append(batch_loss)
 
         # After epoch
-        prompt_scheduler.step()
+        scheduler.step()
         epoch_loss = sum(epoch_losses) / len(epoch_losses)
-        logger.info(f"Epoch: {epoch} \t Total Loss: {epoch_loss}",
+        logger.info(f"Epoch: {epoch} \t Loss: {epoch_loss}",
                     main_process_only=True)
         if accelerator.is_main_process:
             with open(f"{save_folder}/exp.log", 'a') as f:
