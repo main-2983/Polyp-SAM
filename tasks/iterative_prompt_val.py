@@ -90,8 +90,8 @@ def test_prompt(checkpoint,
                     multimask_output=False,
                 )
 
-                points = points[0].cpu().numpy() # (num_points, 2)
-                labels = labels[0].cpu().numpy() # (num_points, )
+                points = points.cpu().numpy() # (num_boxes, points_per_box, 2)
+                labels = labels.cpu().numpy() # (num_boxes, points_per_box)
                 pred_masks = pred_masks[0].detach().cpu().numpy() # (num_masks, H, W)
                 final_mask = pred_masks[0] # (H, W)
                 for i in range(1, len(pred_masks)):
@@ -101,7 +101,8 @@ def test_prompt(checkpoint,
                     plt.figure(figsize=(10, 10))
                     plt.imshow(image_np)
                     show_mask(final_mask, plt.gca())
-                    show_points(points, labels, plt.gca())
+                    for (point, label) in zip(points, labels):
+                        show_points(point, label, plt.gca())
                     plt.axis("off")
                     save_path = f"{store_path}/{dataset_name}/{name}"
                     if not os.path.exists(save_path):

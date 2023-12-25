@@ -270,11 +270,13 @@ class IterativeSelfPromptSAM(PolypSAM):
             image_embedding = self.image_encoder(image[None])
         else:
             image_embedding = self.image_embedding
+
         points = input.get("point_prompt")
+        mask_input = input.get("mask_input", None)
         sparse_embeddings, dense_embeddings = self.prompt_encoder(
             points=points,
             boxes=input.get("box_prompt", None),
-            masks=input.get("mask_input", None),
+            masks=mask_input,
         )
         low_res_masks, iou_predictions = self.mask_decoder(
             image_embeddings=image_embedding,
@@ -284,7 +286,9 @@ class IterativeSelfPromptSAM(PolypSAM):
             multimask_output=multimask_output,
         )
         # Self-prompt
-        point_pred = self.point_prompt_module(image_embedding.detach(), dense_embeddings.detach())
+        point_pred = None
+        if mask_input is not None:
+            point_pred = self.point_prompt_module(image_embedding.detach(), dense_embeddings.detach())
 
         return low_res_masks, iou_predictions, point_pred, image_embedding
     
