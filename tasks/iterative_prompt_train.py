@@ -77,7 +77,8 @@ def main():
     iou_loss = config.IOU_LOSS
 
     # Optimizer
-    optimizer = config.OPTIMIZER(model.parameters(), **config.OPTIMIZER_KWARGS)
+    params = filter(lambda p: p.requires_grad, model.parameters())
+    optimizer = config.OPTIMIZER(params, **config.OPTIMIZER_KWARGS)
     scheduler = config.SCHEDULER(optimizer, **config.SCHEDULER_KWARGS)
 
     model, optimizer, train_loader = accelerator.prepare(
