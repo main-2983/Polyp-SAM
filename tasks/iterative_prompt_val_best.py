@@ -109,6 +109,7 @@ def test_prompt(checkpoint,
                 # Prepare next round input
                 final_mask = pred_mask
                 mask_input = low_res_masks
+                best_dice = temp_dice
 
                 if (store):
                     plt.figure(figsize=(10, 10))

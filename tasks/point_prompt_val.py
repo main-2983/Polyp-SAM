@@ -64,7 +64,7 @@ def test_prompt(checkpoint,
             name = os.path.splitext(name)[0]
             sample = test_dataset[i]
             image = sample["image"].to(device)
-            gt_mask = sample["mask"].to(device)
+            gt_masks = sample["mask"].to(device)
             image_size = (test_dataset.image_size, test_dataset.image_size)
 
             predictor.set_torch_image(image[None], image_size)
@@ -83,7 +83,9 @@ def test_prompt(checkpoint,
             final_mask = pred_masks[0]
             for i in range(1, len(pred_masks)):
                 final_mask = np.logical_or(final_mask, pred_masks[i])
-            gt_mask = gt_mask[0].cpu().numpy()
+            gt_mask = gt_masks[0].cpu().numpy()
+            for i in range(1, len(gt_masks)):
+                gt_mask = np.logical_or(gt_mask, gt_masks[i].cpu().numpy())
 
             gts.append(gt_mask)
             prs.append(final_mask)
