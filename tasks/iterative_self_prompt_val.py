@@ -68,12 +68,12 @@ def test_prompt(checkpoint,
             name = os.path.splitext(name)[0]
             sample = test_dataset[i]
             image = sample["image"].to(device) # (3, 1024, 1024)
-            image_np = UnNormalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])(image)
-            image_np = image_np.cpu().numpy().transpose(1, 2, 0)
             gt_mask = sample["mask"].to(device) # (1, 1024, 1024)
             image_size = (test_dataset.image_size, test_dataset.image_size)
 
             predictor.set_torch_image(image[None], image_size)
+            image_np = UnNormalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])(image)
+            image_np = image_np.cpu().numpy().transpose(1, 2, 0)
 
             # Prepare round 0 input
             mask_input = None
