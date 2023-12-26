@@ -109,6 +109,7 @@ def test_prompt(checkpoint,
 
             gt_mask = gt_mask[0].cpu().numpy()
 
+
             gts.append(gt_mask)
             prs.append(final_mask)
 

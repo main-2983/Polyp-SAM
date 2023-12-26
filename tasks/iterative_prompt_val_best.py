@@ -9,29 +9,34 @@ import matplotlib.pyplot as plt
 
 import torch
 
-from segment_anything import sam_model_registry, SamPredictor
-
-from src.datasets import PromptPolypDataset
-from src.metrics import get_scores, weighted_score
+import sys
+package = os.path.join(os.path.dirname(sys.path[0]), "src")
+sys.path.append(os.path.dirname(package))
+from src.datasets.polyp.polyp_dataset import PromptPolypDataset
+from src.datasets.utils import UnNormalize
+from src.metrics import get_scores, weighted_score, dice_np
+from src.plot_utils import show_points, show_mask
+from src.models.SelfPromptPoint import IterativeSelfPredictor, IterativeSelfPromptSAM
 
 
 @torch.no_grad()
 def test_prompt(checkpoint,
                 config,
                 test_folder,
-                use_box: bool = False,
-                use_point: bool = True,
-                iters: int = 1,
+                positive_threshold: float = 0.1,
+                negative_threshold: float = 0.1,
+                iters: int = 5,
                 store: bool = False,
                 store_path: str = None):
     module = importlib.import_module(config)
     config = module.Config()
-    model: torch.nn.Module = config.model
+
+    model: IterativeSelfPromptSAM = config.model
     state_dict = torch.load(checkpoint, map_location="cpu")
     model.load_state_dict(state_dict)
     model.eval()
     model = model.to("cuda")
-    predictor = SamPredictor(model)
+    predictor = IterativeSelfPredictor(config.sam, model=model)
     device = model.device
 
     dataset_names = ['Kvasir', 'CVC-ClinicDB', 'CVC-ColonDB', 'CVC-300', 'ETIS-LaribPolypDB']
@@ -40,18 +45,9 @@ def test_prompt(checkpoint,
     all_ious, all_dices, all_precisions, all_recalls = [], [], [], []
     metric_weights = [0.1253, 0.0777, 0.4762, 0.0752, 0.2456]
 
-    if (use_box or use_point) == 0: # if not use either point or box
-        use_point = True # -> default to single point
-
     if store:
-        if use_box and use_point:
-            folder = "point_box"
-        elif use_box:
-            folder = "box"
-        elif use_point:
-            folder = "point"
         for dataset_name in dataset_names:
-            os.makedirs(f"{store_path}/{folder}/{dataset_name}", exist_ok=True)
+            os.makedirs(f"{store_path}/{dataset_name}", exist_ok=True)
 
     for dataset_name in dataset_names:
         data_path = f'{test_folder}/{dataset_name}'
@@ -62,7 +58,7 @@ def test_prompt(checkpoint,
 
         test_dataset = PromptPolypDataset(
             test_images, test_masks, image_size=config.IMAGE_SIZE,
-            num_points=1 if use_point else 0, use_box_prompt=use_box, use_center_points=True
+            num_points=1, use_box_prompt=False, use_center_points=True
         )
 
         gts = []
@@ -73,45 +69,56 @@ def test_prompt(checkpoint,
             name = os.path.splitext(name)[0]
             sample = test_dataset[i]
             images = sample[0].to(device) # (C, H, W)
-            masks = sample[1]  # (C, H, W)
+            image_np = UnNormalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])(images)
+            image_np = image_np.cpu().numpy().transpose(1, 2, 0)
+            gt_mask = sample[1].to(device) # (num_boxes, 1024, 1024)
             point_prompts = sample[2].to(device)  # (num_boxes, points_per_box, 2)
             point_labels = sample[3].to(device)  # (num_boxes, points_per_box)
-            box_prompts = sample[4].to(device)  # (num_boxes, 4)
             image_size = (test_dataset.image_size, test_dataset.image_size)
 
             predictor.set_torch_image(images[None], image_size)
 
-            # Round 0 input
+            # Prepare round 0 input
             mask_input = None
-            final_mask = np.zeros_like(masks[0].cpu().numpy())
+            final_mask = np.zeros_like(gt_mask.cpu().numpy())
+            point = (point_prompts, point_labels)
             for iter in range(iters):
-                pred_masks, scores, logits = predictor.predict_torch(
-                    point_coords=point_prompts if use_point else None,
-                    point_labels=point_labels if use_point else None,
-                    boxes=box_prompts if use_box else None,
+                pred_masks, iou_predictions, low_res_masks, points, labels = predictor.predict_torch(
+                    threshold=(positive_threshold, negative_threshold),
+                    point_prompt=point if iter == 0 else None,
                     mask_input=mask_input,
-                    multimask_output=False
+                    multimask_output=False,
                 )
 
+                points = points.cpu().numpy() # (num_boxes, points_per_box, 2)
+                labels = labels.cpu().numpy() # (num_boxes, points_per_box)
                 pred_masks = pred_masks[0].detach().cpu().numpy() # (num_masks, H, W)
-                final_mask = pred_masks[0]
+                final_mask = pred_masks[0] # (H, W)
                 for i in range(1, len(pred_masks)):
                     final_mask = np.logical_or(final_mask, pred_masks[i])
-                mask_input = logits
 
-            gt_mask = masks[0].cpu().numpy()
-            for i in range(1, len(masks)):
-                gt_mask = np.logical_or(gt_mask, masks[i])
+                if (store):
+                    plt.figure(figsize=(10, 10))
+                    plt.imshow(image_np)
+                    show_mask(final_mask, plt.gca())
+                    for (point, label) in zip(points, labels):
+                        show_points(point, label, plt.gca())
+                    plt.axis("off")
+                    save_path = f"{store_path}/{dataset_name}/{name}"
+                    if not os.path.exists(save_path):
+                        os.makedirs(save_path)
+                    plt.savefig(f"{save_path}/iter_{iter}.png")
+                    plt.close()
+
+                # Prepare next round input
+                mask_input = low_res_masks
+
+                temp_dice =
+
+            gt_mask = gt_mask[0].cpu().numpy()
 
             gts.append(gt_mask)
             prs.append(final_mask)
-
-            if (store):
-                plt.figure(figsize=(10, 10))
-                plt.imshow(final_mask)
-                plt.axis("off")
-                plt.savefig(f"{store_path}/{folder}/{dataset_name}/{name}.png")
-                plt.close()
 
         mean_iou, mean_dice, mean_precision, mean_recall = get_scores(gts, prs)
         all_ious.append(mean_iou)
@@ -141,7 +148,7 @@ def test_prompt(checkpoint,
 
     # Write result to file
     if store:
-        with open(f"{store_path}/{folder}/results_polyp.txt", 'w') as f:
+        with open(f"{store_path}/results_polyp.txt", 'w') as f:
             f.write(tabulate(table, headers=headers, tablefmt="fancy_grid"))
 
 
@@ -150,9 +157,9 @@ def parse_args():
     parser.add_argument('ckpt', type=str, help="Model checkpoint")
     parser.add_argument('config', type=str, help="Model config")
     parser.add_argument('--path', type=str, help="Path to test folder")
-    parser.add_argument('--use-box', action="store_true")
-    parser.add_argument('--use-point', action="store_true")
-    parser.add_argument('--iters', type=int, default=1)
+    parser.add_argument('--positive', type=float, default=0.1)
+    parser.add_argument('--negative', type=float, default=0.1)
+    parser.add_argument('--iters', type=int, default=5, help="Number of prediction iteration")
     parser.add_argument('--store', action="store_true")
     parser.add_argument('--store_path', type=str, default=None, required=False)
     args = parser.parse_args()
@@ -165,8 +172,8 @@ if __name__ == '__main__':
     test_prompt(args.ckpt,
                 args.config,
                 args.path,
-                args.use_box,
-                args.use_point,
+                args.positive,
+                args.negative,
                 args.iters,
                 args.store,
                 args.store_path)
