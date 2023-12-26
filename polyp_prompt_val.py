@@ -101,7 +101,7 @@ def test_prompt(checkpoint,
 
             gt_mask = masks[0].cpu().numpy()
             for i in range(1, len(masks)):
-                gt_mask = np.logical_or(gt_mask, masks[i])
+                gt_mask = np.logical_or(gt_mask, masks[i].cpu().numpy())
 
             gts.append(gt_mask)
             prs.append(final_mask)
