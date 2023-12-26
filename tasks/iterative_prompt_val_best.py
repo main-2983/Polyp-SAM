@@ -69,19 +69,24 @@ def test_prompt(checkpoint,
             name = os.path.splitext(name)[0]
             sample = test_dataset[i]
             images = sample[0].to(device) # (C, H, W)
-            image_np = UnNormalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])(images)
-            image_np = image_np.cpu().numpy().transpose(1, 2, 0)
-            gt_mask = sample[1].to(device) # (num_boxes, 1024, 1024)
+            gt_masks = sample[1].to(device) # (num_boxes, 1024, 1024)
             point_prompts = sample[2].to(device)  # (num_boxes, points_per_box, 2)
             point_labels = sample[3].to(device)  # (num_boxes, points_per_box)
             image_size = (test_dataset.image_size, test_dataset.image_size)
 
             predictor.set_torch_image(images[None], image_size)
+            image_np = UnNormalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])(images)
+            image_np = image_np.cpu().numpy().transpose(1, 2, 0)
+
+            gt_mask = gt_masks[0].cpu().numpy()
+            for i in range(1, len(gt_masks)):
+                gt_mask = np.logical_or(gt_mask, gt_masks[i].cpu().numpy())
 
             # Prepare round 0 input
             mask_input = None
             final_mask = np.zeros_like(gt_mask.cpu().numpy())
             point = (point_prompts, point_labels)
+            best_dice = 0
             for iter in range(iters):
                 pred_masks, iou_predictions, low_res_masks, points, labels = predictor.predict_torch(
                     threshold=(positive_threshold, negative_threshold),
@@ -93,9 +98,17 @@ def test_prompt(checkpoint,
                 points = points.cpu().numpy() # (num_boxes, points_per_box, 2)
                 labels = labels.cpu().numpy() # (num_boxes, points_per_box)
                 pred_masks = pred_masks[0].detach().cpu().numpy() # (num_masks, H, W)
-                final_mask = pred_masks[0] # (H, W)
+                pred_mask = pred_masks[0] # (H, W)
                 for i in range(1, len(pred_masks)):
-                    final_mask = np.logical_or(final_mask, pred_masks[i])
+                    pred_mask = np.logical_or(pred_mask, pred_masks[i])
+
+                temp_dice = dice_np(pred_mask, gt_mask)
+                if temp_dice < best_dice:
+                    break
+
+                # Prepare next round input
+                final_mask = pred_mask
+                mask_input = low_res_masks
 
                 if (store):
                     plt.figure(figsize=(10, 10))
@@ -109,13 +122,6 @@ def test_prompt(checkpoint,
                         os.makedirs(save_path)
                     plt.savefig(f"{save_path}/iter_{iter}.png")
                     plt.close()
-
-                # Prepare next round input
-                mask_input = low_res_masks
-
-                temp_dice =
-
-            gt_mask = gt_mask[0].cpu().numpy()
 
             gts.append(gt_mask)
             prs.append(final_mask)
