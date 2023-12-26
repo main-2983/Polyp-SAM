@@ -84,7 +84,7 @@ def test_prompt(checkpoint,
 
             # Prepare round 0 input
             mask_input = None
-            final_mask = np.zeros_like(gt_mask.cpu().numpy())
+            final_mask = np.zeros_like(gt_mask)
             point = (point_prompts, point_labels)
             best_dice = 0
             for iter in range(iters):
