@@ -94,7 +94,7 @@ def test_prompt(checkpoint,
                 multimask_output=False
             )
 
-            pred_masks = pred_masks[0].detach().cpu().numpy() # (num_masks, H, W)
+            pred_masks = pred_masks[:, 0].detach().cpu().numpy()  # (num_masks, H, W)
             final_mask = pred_masks[0]
             for i in range(1, len(pred_masks)):
                 final_mask = np.logical_or(final_mask, pred_masks[i])

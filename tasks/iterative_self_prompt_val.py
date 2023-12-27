@@ -87,7 +87,7 @@ def test_prompt(checkpoint,
 
                 points = points[0].cpu().numpy() # (num_points, 2)
                 labels = labels[0].cpu().numpy() # (num_points, )
-                pred_masks = pred_masks[0].detach().cpu().numpy() # (num_masks, H, W)
+                pred_masks = pred_masks[:, 0].detach().cpu().numpy() # (num_masks, H, W)
                 final_mask = pred_masks[0] # (H, W)
                 for i in range(1, len(pred_masks)):
                     final_mask = np.logical_or(final_mask, pred_masks[i])

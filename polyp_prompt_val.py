@@ -13,6 +13,7 @@ from segment_anything import sam_model_registry, SamPredictor
 
 from src.datasets import PromptPolypDataset
 from src.metrics import get_scores, weighted_score
+from src.plot_utils import show_points, show_box
 
 
 @torch.no_grad()
@@ -93,7 +94,7 @@ def test_prompt(checkpoint,
                     multimask_output=False
                 )
 
-                pred_masks = pred_masks[0].detach().cpu().numpy() # (num_masks, H, W)
+                pred_masks = pred_masks[:, 0].detach().cpu().numpy() # (num_masks, H, W)
                 final_mask = pred_masks[0]
                 for i in range(1, len(pred_masks)):
                     final_mask = np.logical_or(final_mask, pred_masks[i])
@@ -109,6 +110,13 @@ def test_prompt(checkpoint,
             if (store):
                 plt.figure(figsize=(10, 10))
                 plt.imshow(final_mask)
+                if use_point:
+                    points = point_prompts.cpu().numpy() # (num_boxes, points_per_box, 2)
+                    labels = point_labels.cpu().numpy() # (num_boxes, points_per_box)
+                    for (point, label) in zip(points, labels):
+                        show_points(point, label, plt.gca())
+                if use_box:
+                    pass
                 plt.axis("off")
                 plt.savefig(f"{store_path}/{folder}/{dataset_name}/{name}.png")
                 plt.close()
