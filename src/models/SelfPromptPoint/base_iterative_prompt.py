@@ -1,5 +1,5 @@
 from typing import List, Dict, Any, Tuple
-from abc import abstractmethod
+from abc import abstractmethod, ABCMeta
 
 import torch
 import torch.nn as nn
@@ -10,7 +10,7 @@ from ..assigner.point_generator import PointGenerator, MlvlPointGenerator
 __all__ = ["BaseIterativePromptSAM", "BaseIterativePrompt"]
 
 
-class BaseIterativePrompt(nn.Module):
+class BaseIterativePrompt(nn.Module, metaclass=ABCMeta):
     def __init__(self,
                  strides: List[int] = [16]):
         super(BaseIterativePrompt, self).__init__()
@@ -67,7 +67,7 @@ class BaseIterativePrompt(nn.Module):
         pass
 
 
-class BaseIterativePromptSAM(PolypSAM):
+class BaseIterativePromptSAM(PolypSAM, metaclass=ABCMeta):
     def __init__(self,
                  *args,
                  point_prompt_module: BaseIterativePrompt,
