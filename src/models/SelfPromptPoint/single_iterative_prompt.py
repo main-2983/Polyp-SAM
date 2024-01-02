@@ -118,7 +118,7 @@ class SingleIterativePrompt(BaseIterativePrompt):
         featmap_size = img_embedding.shape[-2:]
         num_priors = featmap_size[0] * featmap_size[1]
         # Assigned with 0
-        assigned_gt_inds = torch.full((num_priors, 2), 0, device=device) # (num_priors, 2)
+        assigned_gt_inds = torch.full((num_priors, 1), 0, device=device) # (num_priors, 1)
 
         for (point, label) in zip(points, labels):
             point = point / self.strides[0] # scale the point to featmap size
@@ -128,7 +128,7 @@ class SingleIterativePrompt(BaseIterativePrompt):
             index = [torch.floor((torch.ceil(p[1]) - 1) * featmap_size[1] + p[0]).to(torch.int) for p in point]
             assert len(index) == len(label)
             for i in range(len(index)):
-                assigned_gt_inds[index[i], label[i]] = 1
+                assigned_gt_inds[index[i]] = 1
 
         return assigned_gt_inds
 
