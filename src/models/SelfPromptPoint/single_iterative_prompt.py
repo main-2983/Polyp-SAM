@@ -121,7 +121,7 @@ class SingleIterativePrompt(BaseIterativePrompt):
         assigned_gt_inds = torch.full((num_priors, 2), 0, device=device) # (num_priors, 2)
 
         for (point, label) in zip(points, labels):
-            point = point / self.stride # scale the point to featmap size
+            point = point / self.strides[0] # scale the point to featmap size
             point[:, 0] = torch.clamp(point[:, 0], min=0, max=featmap_size[0])
             point[:, 1] = torch.clamp(point[:, 1], min=0, max=featmap_size[1])
             # Map point to index
