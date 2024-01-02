@@ -78,9 +78,9 @@ class IterativePointPrompt(nn.Module):
         device = pred.device
         priors_generator = PointGenerator()
         positive_priors = priors_generator.grid_points(
-            (H, W), stride=self.stride, device=device) # (H * W, 2)
+            (H, W), device=device) # (H * W, 2)
         negative_priors = priors_generator.grid_points(
-            (H, W), stride=self.stride, device=device) # (H * W, 2)
+            (H, W), device=device) # (H * W, 2)
 
         pred = pred.sigmoid()
         pred = pred.permute(0, 2, 3, 1).view(-1, 2) # (H * W, 2)
@@ -175,9 +175,9 @@ class IterativeSinglePointPrompt(IterativePointPrompt):
         device = pred.device
         priors_generator = PointGenerator()
         positive_priors = priors_generator.grid_points(
-            (H, W), stride=self.stride, device=device) # (H * W, 2)
+            (H, W), device=device) # (H * W, 2)
         negative_priors = priors_generator.grid_points(
-            (H, W), stride=self.stride, device=device) # (H * W, 2)
+            (H, W), device=device) # (H * W, 2)
 
         pred = pred.sigmoid()
         pred = pred.permute(0, 2, 3, 1).flatten() # (H * W,)
@@ -244,6 +244,17 @@ class IterativeSinglePointPrompt(IterativePointPrompt):
                 assigned_gt_inds[index[i]] = 1
 
         return assigned_gt_inds
+
+
+class IterativeSinglePointPromptV2(IterativeSinglePointPrompt):
+    def __int__(self, *args, **kwargs):
+        super(IterativeSinglePointPromptV2, self).__init__(*args, **kwargs)
+
+    @torch.no_grad()
+    def get_target_single(self,
+                          point_prompt: Tuple[torch.Tensor, torch.Tensor],
+                          img_embedding: torch.Tensor):
+        pass
 
 
 class IterativeSelfPromptSAM(PolypSAM):

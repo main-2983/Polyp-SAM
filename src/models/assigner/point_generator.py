@@ -11,8 +11,10 @@ DeviceType = Union[str, torch.device]
 
 class PointGenerator:
     def __init__(self,
-                 offset: float = 0.5):
+                 offset: float = 0.5,
+                 stride: int = 16):
         self.offset = offset
+        self.stride = stride
 
     def _meshgrid(self,
                   x: Tensor,
@@ -38,7 +40,6 @@ class PointGenerator:
 
     def grid_points(self,
                     featmap_size: Tuple[int, int],
-                    stride=16,
                     device: DeviceType = 'cuda',
                     with_stride: bool = False) -> Tensor:
         """Generate grid points of a single level.
@@ -53,10 +54,10 @@ class PointGenerator:
             torch.Tensor: grid point in a feature map.
         """
         feat_h, feat_w = featmap_size
-        shift_x = (torch.arange(0., feat_w, device=device) + self.offset) * stride
-        shift_y = (torch.arange(0., feat_w, device=device) + self.offset) * stride
+        shift_x = (torch.arange(0., feat_w, device=device) + self.offset) * self.stride
+        shift_y = (torch.arange(0., feat_w, device=device) + self.offset) * self.stride
         shift_xx, shift_yy = self._meshgrid(shift_x, shift_y)
-        stride = shift_x.new_full((shift_xx.shape[0], ), stride)
+        stride = shift_x.new_full((shift_xx.shape[0], ), self.stride)
         if not with_stride:
             shifts = torch.stack([shift_xx, shift_yy], dim=-1)
         else:
