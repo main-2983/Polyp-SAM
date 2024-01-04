@@ -60,11 +60,12 @@ class PromptDatasetHeatmap(Dataset):
     def __getitem__(self, index):
         image = self.rgb_loader(self.image_paths[index])
         mask, mask2 = self.binary_loader(self.mask_paths[index])
-        # mask = np.where(mask > 127, 255, 0).astype(np.uint8)
-        mask2 = np.where(mask2 > 127, 255, 0)
+        value_list = np.unique(mask2)
+        value_list = np.sort(value_list)
+        idx_median = len(value_list) // 2
+        mask2 = np.where(mask2 >= value_list[idx_median], 255, 0)
         
-
-        heat_map = self.heatmap_gen_ver2(mask2, with_mask=False)
+        heat_map, point_label = self.heatmap_gen_ver2(mask2, with_mask=False)
 
         # To Tensor
         image = ToTensor()(image)

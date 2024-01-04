@@ -1,0 +1,1 @@
+CUDA_VISIBLE_DEVICES=0 python3 point_prompt_val_heatmap.py /home/trinh.quang.huy/Polyp-SAM/tasks/workdir/train/Self-Prompt-Point/2023-12-12_164543/ckpts/39.pt configs.config_point_prompt_heatmap --path /home/trinh.quang.huy/sun-polyp/Dataset/TestDataset --store_path fig_pred_2_model_2_ViT_embed_2 --store

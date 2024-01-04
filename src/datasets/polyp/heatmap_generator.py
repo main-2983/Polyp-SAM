@@ -73,6 +73,7 @@ class HeatmapGeneratorVer2(object):
         # Create an empty heatmap
         heatmap = np.zeros_like(mask, dtype=np.float32)
         # Generate the heatmap
+        point_label = []
         for contour, contour_area in zip(contours, contour_areas):
             # Find the moments:
             M = cv2.moments(contour)
@@ -83,10 +84,11 @@ class HeatmapGeneratorVer2(object):
                 cY = int(M["m01"] / M["m00"])
                 # heatmap += gaussian(*np.indices(mask.shape),
                 #                     cY, cX, contour_area / 100)
+                point_label.append([cX, cY])
                 heatmap += self.gaussian(*np.indices(mask.shape),
                                     cY, cX, np.sqrt(contour_area) / 7)
         # Normalize the heatmap
         if with_mask:
             heatmap = heatmap * mask
         heatmap = heatmap / np.max(heatmap)
-        return heatmap
+        return heatmap, point_label

@@ -69,7 +69,7 @@ def main():
     )
 
     for epoch in range(1, config.MAX_EPOCHS + 1):
-
+        print("===> heat map Model new")
         epoch_losses = []
 
         for batch in tqdm(train_loader, desc=f"epoch: {epoch}", disable=not accelerator.is_main_process):
@@ -106,7 +106,7 @@ def main():
                 f.write(f"Epoch: {epoch} \t Loss: {epoch_loss} \n")
 
         # Saving
-        if epoch >= 40 and epoch % 5 == 0:
+        if epoch >= 20:
 
             accelerator.wait_for_everyone()
             model_state_dict = accelerator.get_state_dict(model)
@@ -114,7 +114,7 @@ def main():
             accelerator.save(model_state_dict, f"{save_folder}/ckpts/{epoch}.pt")       
             ckpts_path = f"{save_folder}/ckpts/{epoch}.pt"
             DatasetTest = "/home/trinh.quang.huy/sun-polyp/Dataset/TestDataset"
-            test_prompt(ckpts_path, args.config, DatasetTest)
+            test_prompt(ckpts_path, args.config, DatasetTest, store_path="Fig_pred_new_heatmap_model", store=True)
 
     # for i, batch in enumerate(tqdm(train_loader)):
 

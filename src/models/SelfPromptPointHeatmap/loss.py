@@ -10,6 +10,21 @@ BASE_LOSS_DICT = dict(
     )
 )
 
+# BASE_LOSS_DICT = dict(
+#     mse_loss=0,
+#     weight_dict=dict(
+#         heatmap_loss0 = 0.2,
+#         heatmap_loss1 = 0.8,
+#     )
+# )
+
+# BASE_LOSS_DICT = dict(
+#     mse_loss=0,
+#     weight_dict=dict(
+#         heatmap_loss0 = 1
+#     )
+# )
+
 class MseLoss(nn.Module):
     def __init__(self):
         super(MseLoss, self).__init__()
