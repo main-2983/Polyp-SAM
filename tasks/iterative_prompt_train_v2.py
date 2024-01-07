@@ -116,7 +116,7 @@ def main():
                 ):
                     # Prepare round 0 inputs
                     round_loss = 0
-                    mask_input = None
+                    mask_input, mask_to_sample, rand = None, None, None
                     point = (point_prompt, point_label)
                     for round in range(config.ROUND_PER_EPOCH):
                         model_input = {
@@ -145,10 +145,13 @@ def main():
 
                         # Calculate loss with the selected_masks
                         gt_instance = dict(
+                            gt_mask=gt_mask,
                             image_embedding=img_emb,
                             point_prompt=point,
                             box_prompt=box_prompt,
-                            logit_mask=mask_input
+                            logit_mask=mask_input,
+                            mask_to_sample=mask_to_sample,
+                            rand=rand
                         )
                         if is_distributed:
                             upscaled_masks = model.module.postprocess_masks(

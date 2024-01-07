@@ -54,7 +54,7 @@ class SingleIterativePrompt(BaseIterativePrompt):
             img_emb: of shape (1, 256, 64, 64)
             dense_emb: of shape (num_objs, 256, 64, 64)
         Returns:
-            Prediction mask of shape (1, 2, 64, 64)
+            Prediction mask of shape (1, 1, 64, 64)
         """
         img_emb = img_emb.detach()
         dense_emb = dense_emb.detach()
@@ -81,7 +81,7 @@ class SingleIterativePrompt(BaseIterativePrompt):
         """
         _, _, H, W = pred.shape
         device = pred.device
-        priors_generator = PointGenerator()
+        priors_generator = PointGenerator(stride=self.strides[0])
         positive_priors = priors_generator.grid_points(
             (H, W), device=device) # (H * W, 2)
         negative_priors = priors_generator.grid_points(
@@ -141,8 +141,23 @@ class SingleIterativePromptSAM(BaseIterativePromptSAM):
         super(SingleIterativePromptSAM, self).__init__(
             *args, point_prompt_module=point_prompt_module, **kwargs)
 
-    def get_target_single(self, gt_instances: Dict[str, Any]) -> torch.Tensor:
+    def prepare_for_loss(self,
+                         pred: torch.Tensor,
+                         gt_instance: Dict[str, Any]) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Prepare the loss component based on the features extracted by the head
+        and the next-iteration prompts
+        Args:
+            pred (Tensor): prediction of shape (1, 1, H, W)
+            gt_instance (dict): Required fields for get_target_single
+        """
+        target = self.get_target_single(gt_instance) # (H * W, 1)
+        flatten_pred = pred.permute(0, 2, 3, 1).view(-1, 1).contiguous() # (H * W, 1)
+
+        return target, flatten_pred
+
+    def get_target_single(self, gt_instance: Dict[str, Any]) -> torch.Tensor:
         return self.point_prompt_module.get_target_single(
-            gt_instances["point_prompt"],
-            gt_instances["image_embedding"]
+            gt_instance["point_prompt"],
+            gt_instance["image_embedding"]
         )

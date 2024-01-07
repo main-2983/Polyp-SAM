@@ -16,7 +16,7 @@ from src.datasets.polyp.polyp_dataset import PromptPolypDataset
 from src.datasets.utils import UnNormalize
 from src.metrics import get_scores, weighted_score, dice_np
 from src.plot_utils import show_points, show_mask
-from src.models.SelfPromptPoint import IterativeSelfPredictor, IterativeSelfPromptSAM
+from src.models.SelfPromptPoint import IterativeSelfPredictor, BaseIterativePromptSAM
 
 
 @torch.no_grad()
@@ -31,7 +31,7 @@ def test_prompt(checkpoint,
     module = importlib.import_module(config)
     config = module.Config()
 
-    model: IterativeSelfPromptSAM = config.model
+    model: BaseIterativePromptSAM = config.model
     state_dict = torch.load(checkpoint, map_location="cpu")
     model.load_state_dict(state_dict)
     model.eval()
