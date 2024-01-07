@@ -110,9 +110,9 @@ class SingleDiceIterativePromptSAM(BaseIterativePromptSAM):
         flatten_mask_to_sample = scaled_mask_to_sample.flatten() # (H * W,)
         selected_indices = torch.nonzero(flatten_mask_to_sample, as_tuple=True)[0] # (H * W,)
         selected_points = priors[flatten_mask_to_sample] # (num_selected, 2)
-        selected_labels = torch.ones((selected_points.shape[0], ), device=device, dtype=torch.long) # (num_selected, )
+        selected_labels = torch.ones((selected_points.shape[0], 1), device=device, dtype=torch.long) # (num_selected, 1)
         if not positive:
-            selected_labels = torch.zeros((selected_points.shape[0], ), device=device, dtype=torch.long)
+            selected_labels = torch.zeros((selected_points.shape[0], 1), device=device, dtype=torch.long)
         # Step 4: Perform forward for every single point to get the dice score
         for (point, label, index) in zip(selected_points, selected_labels, selected_indices):
             point = point[None, None] # Expand to (1, 1, 2)
