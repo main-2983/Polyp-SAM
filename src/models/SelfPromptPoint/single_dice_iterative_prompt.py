@@ -96,12 +96,12 @@ class SingleDiceIterativePromptSAM(BaseIterativePromptSAM):
         positive = self.point_prompt_module.positive
         stride = self.point_prompt_module.strides[0]
         device = image_embedding.device
-        featmap_size = image_embedding.shape[:-2]
+        featmap_size = image_embedding.shape[-2:]
 
         # Step 0: Create an all 0s target
         target = torch.zeros(featmap_size[0] * featmap_size[1], device=device)
         # Step 1: Shrink the mask_to_sample to (64, 64) so we have fewer points to sample
-        scaled_mask_to_sample = F.interpolate(mask_to_sample[None, None], featmap_size, mode='bilinear')
+        scaled_mask_to_sample = F.interpolate(mask_to_sample[None, None].float(), featmap_size, mode='bilinear')
         scaled_mask_to_sample = torch.where(scaled_mask_to_sample > 0.5, True, False) # Convert to boolean mask
         # Step 2: Create the grid to sample points from
         prior_generator = PointGenerator(stride=stride)
