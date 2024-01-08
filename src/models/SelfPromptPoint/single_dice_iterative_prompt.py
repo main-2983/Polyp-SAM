@@ -74,6 +74,39 @@ class SingleDiceIterativePrompt(BaseIterativePrompt):
     def get_target_single(self):
         return
 
+    def decode_prediction(self,
+                          pred: torch.Tensor,
+                          positive_threshold: float = 0.5,
+                          negative_threshold: float = 0.5):
+        """
+        Convert prediction to point and label
+        Single image prediction, don't use on batch size > 1
+        Args:
+            pred (Tensor): of shape (1, 1, H, W)
+        """
+        _, _, H, W = pred.shape
+        device = pred.device
+        priors_generator = PointGenerator(stride=self.strides[0])
+        positive_priors = priors_generator.grid_points(
+            (H, W), device=device) # (H * W, 2)
+        negative_priors = priors_generator.grid_points(
+            (H, W), device=device) # (H * W, 2)
+
+        pred = pred.sigmoid()
+        pred = pred.permute(0, 2, 3, 1).flatten() # (H * W,)
+        if self.positive:
+            selected_mask = torch.where(pred >= positive_threshold, True, False) # (H * W,)
+            selected_priors = positive_priors[selected_mask] # (num_selected_pos, 2)
+            labels = torch.ones((selected_priors.shape[0],),
+                                dtype=torch.long, device=device)
+        else:
+            selected_mask = torch.where(pred >= negative_threshold, True, False)
+            selected_priors = negative_priors[selected_mask] # (num_selected_neg, 2)
+            labels = torch.zeros((selected_priors.shape[0],),
+                                dtype=torch.long, device=device)
+
+        return selected_priors.unsqueeze(0), labels.unsqueeze(0) # Expand num_box dim
+
 
 class SingleDiceIterativePromptSAM(BaseIterativePromptSAM):
     def __init__(self,
