@@ -5,3 +5,4 @@ from .iterative_self_prompt import IterativeSelfPromptSAM, IterativePointPrompt,
 from .base_iterative_prompt import *
 from .single_iterative_prompt import *
 from .single_dice_iterative_prompt import *
+from .dice_iterative_prompt import *

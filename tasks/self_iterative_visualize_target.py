@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import sys
 package = os.path.join(os.path.dirname(sys.path[0]), "src")
 sys.path.append(os.path.dirname(package))
-from src.models.SelfPromptPoint import IterativeSelfPromptSAM
+from src.models.SelfPromptPoint import BaseIterativePromptSAM
 from src.plot_utils import show_box
 from src.datasets import UnNormalize, uniform_sample_points
 
@@ -34,7 +34,7 @@ def main():
     module = importlib.import_module(args.config)
     config = module.Config()
     # Model
-    model: IterativeSelfPromptSAM = config.model
+    model: BaseIterativePromptSAM = config.model
     if args.ckpt is not None:
         state_dict = torch.load(args.ckpt, map_location="cpu")
         model.load_state_dict(state_dict)
@@ -56,8 +56,6 @@ def main():
         point_prompt = sample[2].to(device)  # (num_boxes, points_per_box, 2)
         point_label = sample[3].to(device)  # (num_boxes, points_per_box)
         image_size = (dataset.image_size, dataset.image_size)
-        image_np = UnNormalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])(image)
-        image_np = image_np.cpu().numpy().transpose(1, 2, 0)
         gt = gt_mask > 0.5  # Cuz resizing image sucks
         single_gt_mask = gt[0, ...].clone()  # (1024, 1024)
         for i in range(1, gt_mask.shape[0]):
@@ -67,7 +65,8 @@ def main():
 
         # Round 0 input
         model.forward_embedding(image)
-        mask_input = None
+
+        mask_input, false_positive_mask, false_negative_mask, rand = None, None, None, None
         point = (point_prompt, point_label)
         for round_i in range(args.round):
             model_input = {
@@ -78,9 +77,20 @@ def main():
                 "image_size": image_size
             }
             low_res_masks, iou_predictions, point_pred, img_emb = model(model_input)
-            point_target, flatten_point_pred = model.point_prompt_module.prepare_for_loss(
-                point_pred, point, img_emb
+
+            gt_instance = dict(
+                gt_mask=gt_mask,
+                image_embedding=img_emb,
+                point_prompt=point,
+                box_prompt=None,
+                logit_mask=mask_input,
+                mask_to_sample=(false_positive_mask, false_negative_mask),
+                rand=rand
             )
+            if round_i > 0:
+                point_target, flatten_point_pred = model.prepare_for_loss(
+                    point_pred, gt_instance
+                )
             # Select the mask with highest IoU for each object
             max_idx = torch.argmax(iou_predictions, dim=1)
             selected_masks = low_res_masks[0:1, max_idx[0]:max_idx[0] + 1, ...]  # (num_objects, 1, 256, 256)
@@ -96,7 +106,6 @@ def main():
 
             # Step 1: convert mask to binary
             upscaled_masks = upscaled_masks > mask_threshold
-            gt = gt_mask > 0.5  # Cuz resizing image sucks
             # Step 2: OR all mask to reduce to C=1
             single_upscale_mask = upscaled_masks[0, 0, ...].clone()  # (1024, 1024)
             for i in range(1, upscaled_masks.shape[0]):
@@ -115,11 +124,11 @@ def main():
             false_positive_mask = -false_positive_mask
             false_negative_mask = torch.where(error_mask == 1, error_mask, 0)
             # Step 4.2: Choose a mask to sample from
-            if (np.random.rand() >= config.RATE):  # sample from false negative mask
+            if (np.random.rand() >= config.RATE):  # sample from false negative mask (select positive point)
                 mask_to_sample = false_negative_mask
                 rand = 1
             else:
-                mask_to_sample = false_positive_mask
+                mask_to_sample = false_positive_mask # sample from false positive mask (select negative point)
                 rand = -1
             # Step 4.3: RANDOMLY Sample point from mask
             width_point_prompt, height_point_prompt = uniform_sample_points(mask_to_sample,
@@ -153,40 +162,41 @@ def main():
             mask_input = selected_masks
 
             # Plot
-            save_path = f"{args.store_path}/{name}"
-            if not os.path.exists(save_path):
-                os.makedirs(save_path)
-            fig, axis = plt.subplots(1, 5)
-            axis[0].imshow(mask_np)
-            axis[0].axis('off')
-            point_target = point_target.view(64, 64, -1)
-            if point_target.shape[-1] == 1: # Single label
-                pad_val = torch.zeros_like(point_target[:, :, 0])
-                point_target = torch.repeat_interleave(point_target, 2, dim=-1) # Expand to (64, 64, 2)
-                point_target[:, :, 1] = pad_val # Set the expanded axis to all 0s
-                point_pred = torch.repeat_interleave(point_pred, 2, dim=1) # Expand to (1, 2, 64, 64)
-                point_pred[0, 1, ...] = pad_val
-            positive_target = point_target[..., 1].cpu().numpy() # (64, 64)
-            negative_target = point_target[..., 0].cpu().numpy() # (64, 64)
-            positive_pred = point_pred[0, 1, ...].cpu().numpy()
-            negative_pred = point_pred[0, 0, ...].cpu().numpy()
-            plots = (positive_target, negative_target, positive_pred, negative_pred)
+            if round_i > 0:
+                save_path = f"{args.store_path}/{name}"
+                if not os.path.exists(save_path):
+                    os.makedirs(save_path)
+                fig, axis = plt.subplots(1, 5)
+                axis[0].imshow(mask_np)
+                axis[0].axis('off')
+                point_target = point_target.view(64, 64, -1)
+                if point_target.shape[-1] == 1: # Single label
+                    pad_val = torch.zeros_like(point_target[:, :, 0])
+                    point_target = torch.repeat_interleave(point_target, 2, dim=-1) # Expand to (64, 64, 2)
+                    point_target[:, :, 1] = pad_val # Set the expanded axis to all 0s
+                    point_pred = torch.repeat_interleave(point_pred, 2, dim=1) # Expand to (1, 2, 64, 64)
+                    point_pred[0, 1, ...] = pad_val
+                positive_target = point_target[..., 1].cpu().numpy() # (64, 64)
+                negative_target = point_target[..., 0].cpu().numpy() # (64, 64)
+                positive_pred = point_pred[0, 1, ...].cpu().numpy()
+                negative_pred = point_pred[0, 0, ...].cpu().numpy()
+                plots = (positive_target, negative_target, positive_pred, negative_pred)
 
-            for i in range(1, 5):
-                axis[i].imshow(plots[i - 1])
-                axis[i].axis('off')
-            plt.savefig(f"{save_path}/targets_iter_{round_i}.png")
-            plt.close()
-            fig, axis = plt.subplots(1, selected_masks.shape[0])
-            if selected_masks.shape[0] > 1:
-                for i in range(selected_masks.shape[0]):
-                    axis[i].imshow(selected_masks[i, 0, :, :].cpu().numpy())
+                for i in range(1, 5):
+                    axis[i].imshow(plots[i - 1])
                     axis[i].axis('off')
-            else:
-                axis.imshow(selected_masks[0, 0, :, :].cpu().numpy())
-                axis.axis('off')
-            plt.savefig(f"{save_path}/mask_iter_{round_i}.png")
-            plt.close()
+                plt.savefig(f"{save_path}/targets_iter_{round_i}.png")
+                plt.close()
+                fig, axis = plt.subplots(1, selected_masks.shape[0])
+                if selected_masks.shape[0] > 1:
+                    for i in range(selected_masks.shape[0]):
+                        axis[i].imshow(selected_masks[i, 0, :, :].cpu().numpy())
+                        axis[i].axis('off')
+                else:
+                    axis.imshow(selected_masks[0, 0, :, :].cpu().numpy())
+                    axis.axis('off')
+                plt.savefig(f"{save_path}/mask_iter_{round_i}.png")
+                plt.close()
 
 
 if __name__ == '__main__':

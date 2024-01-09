@@ -115,7 +115,7 @@ def main():
                 ):
                     # Prepare round 0 inputs
                     round_loss = 0
-                    mask_input, mask_to_sample, rand = None, None, None
+                    mask_input, false_positive_mask, false_negative_mask, rand = None, None, None, None
                     point = (point_prompt, point_label)
                     for round in range(config.ROUND_PER_EPOCH):
                         model_input = {
@@ -149,7 +149,7 @@ def main():
                             point_prompt=point,
                             box_prompt=box_prompt,
                             logit_mask=mask_input,
-                            mask_to_sample=mask_to_sample,
+                            mask_to_sample=(false_positive_mask, false_negative_mask),
                             rand=rand
                         )
                         if is_distributed:
@@ -203,11 +203,11 @@ def main():
                             false_positive_mask = -false_positive_mask
                             false_negative_mask = torch.where(error_mask == 1, error_mask, 0)
                             # Step 4.2: Choose a mask to sample from
-                            if (np.random.rand() >= config.RATE):  # sample from false negative mask
+                            if (np.random.rand() >= config.RATE):  # sample from false negative mask (select positive point)
                                 mask_to_sample = false_negative_mask
                                 rand = 1
                             else:
-                                mask_to_sample = false_positive_mask
+                                mask_to_sample = false_positive_mask  # sample from false positive mask (select negative point)
                                 rand = -1
                             # Step 4.3: RANDOMLY Sample point from mask
                             width_point_prompt, height_point_prompt = uniform_sample_points(mask_to_sample,
