@@ -1,4 +1,4 @@
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 
 import torch
 import torch.nn as nn
@@ -116,6 +116,21 @@ class SingleDiceIterativePromptSAM(BaseIterativePromptSAM):
         assert isinstance(point_prompt_module, SingleDiceIterativePrompt)
         super(SingleDiceIterativePromptSAM, self).__init__(
             *args, point_prompt_module=point_prompt_module, **kwargs)
+
+    def prepare_for_loss(self,
+                         pred: torch.Tensor,
+                         gt_instance: Dict[str, Any]) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Prepare the loss component based on the features extracted by the head
+        and the next-iteration prompts
+        Args:
+            pred (Tensor): prediction of shape (1, 1, H, W)
+            gt_instance (dict): Required fields for get_target_single
+        """
+        target = self.get_target_single(gt_instance) # (H * W, 1)
+        flatten_pred = pred.permute(0, 2, 3, 1).view(-1, 1).contiguous() # (H * W, 1)
+
+        return target, flatten_pred
 
     @torch.no_grad()
     def get_target_single(self, gt_instance: Dict[str, Any]) -> torch.Tensor:
