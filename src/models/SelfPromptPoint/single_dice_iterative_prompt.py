@@ -149,7 +149,7 @@ class SingleDiceIterativePromptSAM(BaseIterativePromptSAM):
         device = image_embedding.device
 
         # Step 0: Create an all 0s target
-        target = torch.zeros(featmap_size[0] * featmap_size[1], device=device)
+        target = torch.zeros((featmap_size[0] * featmap_size[1], 1), device=device)
         # Step 1: Shrink the mask_to_sample to (64, 64) so we have fewer points to sample
         scaled_mask_to_sample = F.interpolate(mask_to_sample[None, None].float(), featmap_size, mode='bilinear')
         scaled_mask_to_sample = torch.where(scaled_mask_to_sample > 0.5, True, False) # Convert to boolean mask
