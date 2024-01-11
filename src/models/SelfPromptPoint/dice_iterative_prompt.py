@@ -70,12 +70,92 @@ class DiceIterativePrompt(BaseIterativePrompt):
         return
 
 
+class SplitDiceIterativePrompt(DiceIterativePrompt):
+    """
+    This is Iterative Self Prompt module which supports both positive and negative point
+    However, we split the prediction of positive and negative
+    """
+    def __init__(self,
+                 num_convs: int = 3,
+                 in_channels: int = 256,
+                 feat_channels: int = 128,
+                 kernel_size: int = 3,
+                 strides: List[int] = [16]):
+        super(DiceIterativePrompt, self).__init__(strides=strides)
+
+        self.feat_channels = feat_channels
+        convs = []
+        for i in range(num_convs - 1):
+            in_chn = in_channels if i == 0 else feat_channels
+            convs.append(
+                ConvModule(
+                    in_channels=in_chn,
+                    out_channels=feat_channels,
+                    kernel_size=kernel_size,
+                    padding=kernel_size // 2,
+                    norm=LayerNorm2d(feat_channels),
+                    activation=nn.ReLU(inplace=True)
+                )
+            )
+        self.inter_convs = nn.Sequential(*convs)
+        self.positive_decomp = ConvModule(
+            self.feat_channels,
+            self.feat_channels,
+            kernel_size=3,
+            padding=1,
+            norm=LayerNorm2d(feat_channels),
+            activation=nn.ReLU(inplace=True)
+        )
+        self.negative_decomp = ConvModule(
+            self.feat_channels,
+            self.feat_channels,
+            kernel_size=3,
+            padding=1,
+            norm=LayerNorm2d(feat_channels),
+            activation=nn.ReLU(inplace=True)
+        )
+        self.positive_pred = nn.Conv2d(self.feat_channels, 1, kernel_size=1)
+        self.negative_pred = nn.Conv2d(self.feat_channels, 1, kernel_size=1)
+
+    def forward(self,
+                img_emb: torch.Tensor,
+                dense_emb: torch.Tensor) -> torch.Tensor:
+        """
+        This forward function does not support batch forward
+        Args:
+            img_emb: of shape (1, 256, 64, 64)
+            dense_emb: of shape (num_objs, 256, 64, 64)
+        Returns:
+            Prediction mask of shape (1, 2, 64, 64)
+        """
+        img_emb = img_emb.detach()
+        dense_emb = dense_emb.detach()
+
+        num_objs = dense_emb.shape[0]
+        src = torch.repeat_interleave(img_emb, num_objs, dim=0)
+        src = src + dense_emb
+
+        inter_feats = self.inter_convs(src)
+        positive_feats = self.positive_decomp(inter_feats)
+        negative_feats = self.negative_decomp(inter_feats)
+
+        positive_pred = self.positive_pred(positive_feats)
+        negative_pred = self.negative_pred(negative_feats)
+        pred = torch.cat([negative_pred, positive_pred], dim=1)
+        pred = torch.sum(pred, dim=0, keepdim=True)
+
+        return pred
+
+    def get_target_single(self):
+        return
+
+
 class DiceIterativePromptSAM(BaseIterativePromptSAM):
     def __init__(self,
                  *args,
-                 point_prompt_module: DiceIterativePrompt,
+                 point_prompt_module: BaseIterativePrompt,
                  **kwargs):
-        assert isinstance(point_prompt_module, DiceIterativePrompt)
+        assert isinstance(point_prompt_module, BaseIterativePrompt)
         super(DiceIterativePromptSAM, self).__init__(
             *args, point_prompt_module=point_prompt_module, **kwargs)
 
