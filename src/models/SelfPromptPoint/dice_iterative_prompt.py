@@ -10,7 +10,7 @@ from ..assigner.point_generator import PointGenerator
 from .base_iterative_prompt import *
 from .layers import ConvModule
 
-__all__ = ["DiceIterativePrompt", "DiceIterativePromptSAM"]
+__all__ = ["DiceIterativePrompt", "DiceIterativePromptSAM", "SplitDiceIterativePrompt"]
 
 
 class DiceIterativePrompt(BaseIterativePrompt):
