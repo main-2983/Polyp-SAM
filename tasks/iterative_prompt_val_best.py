@@ -26,6 +26,7 @@ def test_prompt(checkpoint,
                 positive_threshold: float = 0.1,
                 negative_threshold: float = 0.1,
                 iters: int = 5,
+                center_point: bool = True,
                 store: bool = False,
                 store_path: str = None):
     module = importlib.import_module(config)
@@ -58,7 +59,7 @@ def test_prompt(checkpoint,
 
         test_dataset = PromptPolypDataset(
             test_images, test_masks, image_size=config.IMAGE_SIZE,
-            num_points=1, use_box_prompt=False, use_center_points=True
+            num_points=1, use_box_prompt=False, use_center_points=center_point
         )
 
         gts = []
@@ -167,6 +168,7 @@ def parse_args():
     parser.add_argument('--positive', type=float, default=0.1)
     parser.add_argument('--negative', type=float, default=0.1)
     parser.add_argument('--iters', type=int, default=5, help="Number of prediction iteration")
+    parser.add_argument('--center-point', action="store_true")
     parser.add_argument('--store', action="store_true")
     parser.add_argument('--store_path', type=str, default=None, required=False)
     args = parser.parse_args()
@@ -182,5 +184,6 @@ if __name__ == '__main__':
                 args.positive,
                 args.negative,
                 args.iters,
+                args.center_point,
                 args.store,
                 args.store_path)
