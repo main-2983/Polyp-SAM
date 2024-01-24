@@ -21,7 +21,7 @@ class IterativePolypSAM(PolypSAM):
 
         image = input.get("image")
 
-        image_embedding = self.image_encoder(image[None])
+        image_embedding,_ = self.image_encoder(image[None])
 
         points = input.get("point_prompt")
         sparse_embeddings, dense_embeddings = self.prompt_encoder(

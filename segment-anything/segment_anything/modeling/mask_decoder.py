@@ -39,6 +39,7 @@ class MaskDecoder(nn.Module):
             mask quality
           iou_head_hidden_dim (int): the hidden dimension of the MLP
             used to predict mask quality
+            
         """
         super().__init__()
         self.transformer_dim = transformer_dim

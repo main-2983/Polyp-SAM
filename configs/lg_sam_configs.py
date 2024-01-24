@@ -10,7 +10,7 @@ from src.models.iterative_polypSAM import IterativePolypSAM
 from src.scheduler import LinearWarmupCosineAnnealingLR
 from src.losses import CombinedLoss
 from src.datasets import PromptPolypDataset
-
+from src.models.logo_mask_decoder import LogoMaskDecoder
 
 class Config:
     def __init__(self):
@@ -20,8 +20,9 @@ class Config:
 
         # Model
         sam: Sam = sam_model_registry[MODEL_SIZE](PRETRAINED_PATH)
+        self.lg_mask_decoder=LogoMaskDecoder()
         self.model = IterativePolypSAM(sam.image_encoder,
-                                       sam.mask_decoder,
+                                       self.lg_mask_decoder,
                                        sam.prompt_encoder)
 
         # Dataset and Dataloader

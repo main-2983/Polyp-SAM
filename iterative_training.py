@@ -126,6 +126,9 @@ def main():
                         # iou_predictions (num_objects, num_preds)
                         low_res_masks, iou_predictions = model(model_input)
 
+                        # mask1=low_res_masks[:,0,...]
+                        # mask2=low_res_masks[:,1,...]
+                        # mask3=low_res_masks[:,2,...]
                         # Select the mask with highest IoU for each object
                         max_idx = torch.argmax(iou_predictions, dim=1)
                         selected_masks = low_res_masks[0:1, max_idx[0]:max_idx[0] + 1, ...]  # (num_objects, 1, 256, 256)
@@ -177,7 +180,7 @@ def main():
                                 single_gt_mask = torch.logical_or(single_gt_mask, gt[i, ...])  # (1024, 1024)
                             single_upscale_mask = single_upscale_mask.long()
                             single_gt_mask = single_gt_mask.long()
-                            # Step 2: Find the error region
+                            # Step 3: Find the error region
                             # Error_mask will have value of:
                             # -1: On false positive pixel (predict mask but wrong)
                             # 0: On true positive and true negative pixel
@@ -195,7 +198,7 @@ def main():
                             else:
                                 mask_to_sample = false_positive_mask
                                 rand = -1
-                            # Step 4.3: RANDOMLY Sample point from mask
+                            # Step 4.3: RANDOMLY sample point from mask
                             height_point_prompt, width_point_prompt = uniform_sample_points(mask_to_sample,
                                                                                             num_points=1)
                             _point_prompt = torch.hstack([height_point_prompt, width_point_prompt])  # (1, 2)

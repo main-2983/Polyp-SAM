@@ -2,3 +2,7 @@
 ckpts/
 __pycache__/
 workdir/
+/detr
+/embeddings
+*.png
+*.ipynb

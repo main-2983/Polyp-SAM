@@ -47,9 +47,9 @@ def test_prompt(checkpoint,
 
     for dataset_name in dataset_names:
         data_path = f'{test_folder}/{dataset_name}'
-        test_images = glob('{}/images/*'.format(data_path))
+        test_images = glob('{}/images/*.png'.format(data_path))
         test_images.sort()
-        test_masks = glob('{}/masks/*'.format(data_path))
+        test_masks = glob('{}/masks/*.png'.format(data_path))
         test_masks.sort()
 
         test_dataset = PolypDataset(
