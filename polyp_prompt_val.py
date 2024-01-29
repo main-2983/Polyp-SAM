@@ -13,6 +13,7 @@ from segment_anything import sam_model_registry, SamPredictor
 
 from src.datasets import PromptPolypDataset
 from src.metrics import get_scores, weighted_score
+from tools.vis_featmap import get_featmaps
 
 
 @torch.no_grad()

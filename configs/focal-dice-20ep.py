@@ -12,8 +12,8 @@ from src.scheduler import LinearWarmupCosineAnnealingLR
 class Config(BaseConfig):
     def __init__(self):
         super(Config, self).__init__()
-        IMG_PATH = "/home/nguyen.mai/Dataset/Polyp/TrainDataset/image/*"
-        MASK_PATH = "/home/nguyen.mai/Dataset/Polyp/TrainDataset/mask/*"
+        IMG_PATH = "/home/dang.hong.thanh/datasets/polyp/Dataset/TrainDataset/image/*.png"
+        MASK_PATH = "/home/dang.hong.thanh/datasets/polyp/Dataset/TrainDataset/mask/*.png"
         self.USE_BOX_PROMPT = False
         USE_CENTER_POINT = True
         self.dataset = PromptPolypDataset(

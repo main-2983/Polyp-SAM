@@ -4,7 +4,6 @@ from torch.nn.modules import GELU, Module
 from typing import Tuple,List
 import torch
 import torch.nn as nn
-
 class LayerNorm2d(nn.Module):
     def __init__(self, num_channels: int, eps: float = 1e-6) -> None:
         super().__init__()
@@ -36,17 +35,22 @@ class LogoMaskDecoder(MaskDecoder):
         # self.gl_token=nn.Embedding(1,transformer_dim)
         transformer_dim=256
         self.local_encoder=nn.Sequential(
-                                    nn.Conv2d(768,transformer_dim,1,bias=False),
+                                    nn.ConvTranspose2d(768,transformer_dim,kernel_size=2,stride=2),
                                     LayerNorm2d(transformer_dim),
-                                    nn.Conv2d(transformer_dim,transformer_dim,kernel_size=3,padding=1,bias=False),
-                                    LayerNorm2d(transformer_dim)
+                                    nn.GELU(),
+                                    nn.ConvTranspose2d(transformer_dim,transformer_dim // 8,kernel_size=2,stride=2),
                                 )
 
         self.global_encoder = nn.Sequential(
-                                    nn.Conv2d(transformer_dim, transformer_dim*2, 3, 1, 1), 
-                                    LayerNorm2d(transformer_dim*2),
+                                    nn.ConvTranspose2d(transformer_dim, transformer_dim//4, kernel_size=2,stride=2), 
+                                    LayerNorm2d(transformer_dim//4),
                                     nn.GELU(),
-                                    nn.Conv2d(transformer_dim*2, transformer_dim, 3, 1, 1))
+                                    nn.ConvTranspose2d(transformer_dim//4, transformer_dim//8, kernel_size=2,stride=2))
+        self.refine_maskfeature = nn.Sequential(
+                                        nn.Conv2d(transformer_dim // 8, transformer_dim // 4, 3, 1, 1), 
+                                        LayerNorm2d(transformer_dim // 4),
+                                        nn.GELU(),
+                                        nn.Conv2d(transformer_dim // 4, transformer_dim // 8, 3, 1, 1))
     def forward(
         self,
         image_embeddings: torch.Tensor,
@@ -56,9 +60,7 @@ class LogoMaskDecoder(MaskDecoder):
         multimask_output: bool,
         vit_embeddings: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """
-        Predict masks given image and prompt embeddings.
-
+        """"
         Arguments:
             image_embeddings (torch.Tensor): the embeddings from the ViT image encoder
             image_pe (torch.Tensor): positional encoding with the shape of image_embeddings
@@ -78,7 +80,7 @@ class LogoMaskDecoder(MaskDecoder):
         tokens = torch.cat((output_tokens, sparse_prompt_embeddings), dim=1)
 
         # Expand per-image data in batch direction to be per-mask
-        src = torch.repeat_interleave(gl_features, tokens.shape[0], dim=0) 
+        src = torch.repeat_interleave(image_embeddings, tokens.shape[0], dim=0) 
         src = src + dense_prompt_embeddings
         pos_src = torch.repeat_interleave(image_pe, tokens.shape[0], dim=0)
         b, c, h, w = src.shape
@@ -88,15 +90,16 @@ class LogoMaskDecoder(MaskDecoder):
         iou_token_out = hs[:, 0, :]
         mask_tokens_out = hs[:, 1 : (1 + self.num_mask_tokens), :]
 
-                # Upscale mask embeddings and predict masks using the mask tokens
+        # Upscale mask embeddings and predict masks using the mask tokens
         src = src.transpose(1, 2).view(b, c, h, w)
         upscaled_embedding = self.output_upscaling(src)
+        res_upscaled_embedding=self.refine_maskfeature(upscaled_embedding)+gl_features
         hyper_in_list: List[torch.Tensor] = []
         for i in range(self.num_mask_tokens):
             hyper_in_list.append(self.output_hypernetworks_mlps[i](mask_tokens_out[:, i, :]))
         hyper_in = torch.stack(hyper_in_list, dim=1)
         b, c, h, w = upscaled_embedding.shape
-        masks = (hyper_in @ upscaled_embedding.view(b, c, h * w)).view(b, -1, h, w)
+        masks = (hyper_in @ res_upscaled_embedding.view(b, c, h * w)).view(b, -1, h, w)
 
         # Generate mask quality predictions
         iou_pred = self.iou_prediction_head(iou_token_out)

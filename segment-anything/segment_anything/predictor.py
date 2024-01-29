@@ -226,6 +226,8 @@ class SamPredictor:
         )
 
         # Predict masks
+        visual_local=self.vit_embeddings[0].mean(-1)
+        visual_global=self.vit_embeddings[3].mean(-1)
         low_res_masks, iou_predictions = self.model.mask_decoder(
             image_embeddings=self.features,
             image_pe=self.model.prompt_encoder.get_dense_pe(),
