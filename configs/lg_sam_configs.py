@@ -26,8 +26,8 @@ class Config:
                                        sam.prompt_encoder)
 
         # Dataset and Dataloader
-        IMG_PATH = "/home/dang.hong.thanh/datasets/polyp/Dataset/TrainDataset/image/*.png"
-        MASK_PATH = "/home/dang.hong.thanh/datasets/polyp/Dataset/TrainDataset/mask/*png"
+        IMG_PATH = "/mnt/nfs/datasets/polyp/Dataset/TrainDataset/image/*.png"
+        MASK_PATH = "/mnt/nfs/datasets/polyp/Dataset/TrainDataset/mask/*png"
         self.USE_BOX_PROMPT = False
         USE_CENTER_POINT = True
         self.IMAGE_SIZE = 1024

@@ -32,10 +32,6 @@ class LogoMaskDecoder(MaskDecoder):
                     iou_head_depth=3, 
                     iou_head_hidden_dim=256)
 
-        # checkpoint_path = 'pretrained_checkpoint/sam_vit_b_maskdecoder.pth'
-        # self.load_state_dict(torch.load(checkpoint_path))
-        # for n,p in self.named_parameters():
-        #     p.requires_grad = False
 
         # self.gl_token=nn.Embedding(1,transformer_dim)
         transformer_dim=256
@@ -47,10 +43,10 @@ class LogoMaskDecoder(MaskDecoder):
                                 )
 
         self.global_encoder = nn.Sequential(
-                                    nn.Conv2d(transformer_dim // 8, transformer_dim // 4, 3, 1, 1), 
-                                    LayerNorm2d(transformer_dim // 4),
+                                    nn.Conv2d(transformer_dim, transformer_dim*2, 3, 1, 1), 
+                                    LayerNorm2d(transformer_dim*2),
                                     nn.GELU(),
-                                    nn.Conv2d(transformer_dim // 4, transformer_dim // 8, 3, 1, 1))
+                                    nn.Conv2d(transformer_dim*2, transformer_dim, 3, 1, 1))
     def forward(
         self,
         image_embeddings: torch.Tensor,
@@ -58,7 +54,7 @@ class LogoMaskDecoder(MaskDecoder):
         sparse_prompt_embeddings: torch.Tensor,
         dense_prompt_embeddings: torch.Tensor,
         multimask_output: bool,
-        interm_embeddings: torch.Tensor,
+        vit_embeddings: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Predict masks given image and prompt embeddings.
@@ -74,7 +70,7 @@ class LogoMaskDecoder(MaskDecoder):
         Returns:
             torch.Tensor: batched predicted final masks
         """
-        local_features=interm_embeddings[0].permute(0,3,1,2)
+        local_features=vit_embeddings[0].permute(0,3,1,2)
         gl_features=self.local_encoder(local_features)+self.global_encoder(image_embeddings)
         # output_tokens = torch.cat([self.iou_token.weight, self.mask_tokens.weight, self.gl_token.weight], dim=0)
         output_tokens = torch.cat([self.iou_token.weight, self.mask_tokens.weight], dim=0)

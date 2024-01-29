@@ -21,7 +21,7 @@ class IterativePolypSAM(PolypSAM):
 
         image = input.get("image")
 
-        image_embedding,_ = self.image_encoder(image[None])
+        image_embedding,vit_embeddings = self.image_encoder(image[None])
 
         points = input.get("point_prompt")
         sparse_embeddings, dense_embeddings = self.prompt_encoder(
@@ -35,6 +35,7 @@ class IterativePolypSAM(PolypSAM):
             sparse_prompt_embeddings=sparse_embeddings,
             dense_prompt_embeddings=dense_embeddings,
             multimask_output=multimask_output,
+            vit_embeddings=vit_embeddings,
         )
 
         return low_res_masks, iou_predictions
