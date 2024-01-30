@@ -11,7 +11,8 @@ from segment_anything.utils.transforms import ResizeLongestSide
 from ..polypSAM import PolypSAM
 from ..assigner.point_generator import PointGenerator, MlvlPointGenerator
 
-__all__ = ["BaseIterativePromptSAM", "BaseIterativePrompt", "IterativeSelfPredictor"]
+__all__ = ["BaseIterativePromptSAM", "BaseIterativePrompt", "IterativeSelfPredictor",
+           "AutoSAM"]
 
 
 class BaseIterativePrompt(nn.Module, metaclass=ABCMeta):
@@ -139,6 +140,26 @@ class BaseIterativePromptSAM(PolypSAM, metaclass=ABCMeta):
     def get_target_single(self, gt_instance: Dict[str, Any]) -> torch.Tensor:
         pass
 
+    def save_module(self,
+                    checkpoint: str,
+                    save_path: str):
+        """
+        This method extracts the point prompt module from the base model and save it to `save_path`
+        Args:
+            checkpoint (str): Path to the base model
+            save_path (str): Path to save
+        """
+        model_state_dict = torch.load(checkpoint, map_location="cpu")
+        module_state_dict = self.point_prompt_module.state_dict()
+
+        # Remove string in keys
+        for k, v in model_state_dict.items():
+            if "point_prompt_module" in k:
+                key = k.split("point_prompt_module.")[1]
+                module_state_dict[key] = v
+
+        torch.save(module_state_dict, save_path)
+
 
 class IterativeSelfPredictor(SamPredictor):
     def __init__(self,
@@ -255,3 +276,145 @@ class IterativeSelfPredictor(SamPredictor):
             masks = masks > self.model.mask_threshold
 
         return masks, iou_predictions, low_res_masks, point_coords, labels
+
+
+class AutoSAM(SamPredictor):
+    def __init__(self,
+                 *args,
+                 first_prompt_module: nn.Module,
+                 iterative_prompt_module: BaseIterativePrompt):
+        super(AutoSAM, self).__init__(*args)
+        self.first_prompt_module = first_prompt_module
+        self.iterative_prompt_module = iterative_prompt_module
+        self.model.pixel_mean = torch.Tensor([0.485, 0.456, 0.406]).view(-1, 1, 1)
+        self.model.pixel_std = torch.Tensor([0.229, 0.224, 0.225]).view(-1, 1, 1)
+
+    @property
+    def device(self) -> torch.device:
+        return self.model.device
+
+    def inference_mode(self, device):
+        self.model.to(device)
+        self.model.eval()
+        self.first_prompt_module.to(device)
+        self.first_prompt_module.eval()
+        self.iterative_prompt_module.to(device)
+        self.iterative_prompt_module.eval()
+
+    def load_weights(self,
+                     sam_weight_path: str = None,
+                     first_prompt_weight_path: str = None,
+                     iterative_prompt_weight_path: str = None):
+        if sam_weight_path is not None:
+            sam_sate_dict = torch.load(sam_weight_path, map_location="cpu")
+            self.model.load_state_dict(sam_sate_dict)
+        if first_prompt_weight_path is not None:
+            first_prompt_state_dict = torch.load(first_prompt_weight_path, map_location="cpu")
+            self.first_prompt_module.load_state_dict(first_prompt_state_dict)
+        if iterative_prompt_weight_path is not None:
+            iterative_prompt_state_dict = torch.load(iterative_prompt_weight_path, map_location="cpu")
+            self.iterative_prompt_module.load_state_dict(iterative_prompt_state_dict)
+
+    def predict(
+        self,
+        iter: int,
+        first_threshold: float = 0.4,
+        iterative_threshold: Tuple[float, float] = [0.5, 0.5],
+        box: Optional[np.ndarray] = None,
+        mask_input: Optional[np.ndarray] = None,
+        multimask_output: bool = True,
+        return_logits: bool = False,
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        if not self.is_image_set:
+            raise RuntimeError("An image must be set with .set_image(...) before mask prediction.")
+
+        # Transform input prompts
+        mask_input_torch, point_prompt_torch = None, None
+
+        if mask_input is not None:
+            mask_input_torch = torch.as_tensor(mask_input, dtype=torch.float, device=self.device)
+            mask_input_torch = mask_input_torch[None, :, :, :]
+
+        masks, iou_predictions, low_res_masks, points, labels = self.predict_torch(
+            iter,
+            first_threshold,
+            iterative_threshold,
+            mask_input_torch,
+            multimask_output,
+            return_logits=return_logits,
+        )
+
+        masks_np = masks[0].detach().cpu().numpy()
+        iou_predictions_np = iou_predictions[0].detach().cpu().numpy()
+        low_res_masks_np = low_res_masks[0].detach().cpu().numpy()
+        points_np = points[0].detach().cpu().numpy()
+        labels_np = labels[0].detach().cpu().numpy()
+        return masks_np, iou_predictions_np, low_res_masks_np, points_np, labels_np
+
+    @torch.no_grad()
+    def predict_torch(
+        self,
+        iter: int,
+        first_threshold: float = 0.4,
+        iterative_threshold: Tuple[float, float] = [0.5, 0.5],
+        mask_input: Optional[torch.Tensor] = None,
+        multimask_output: bool = False,
+        return_logits: bool = False,
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        """
+        Returns:
+            masks (Tensor): output masks of shape (1, C, H, W) where C is the number of
+                masks, (H, W) is the original image size
+            iou_predictions (Tensor): of shape (B, C) containing the model's
+                predictions for the quality of each mask
+            low_res_mask (Tensor): of shape (1, C, H, W) where C is the
+                number of masks, H=W=256. These low res logits can be passed
+                to a subsequent iteration as mask input
+            point_coords (Tensor): of shape (1, num_points, 2)
+            labels (Tensor): of shape (1, num_points)
+        """
+
+        if not self.is_image_set:
+            raise RuntimeError("An image must be set with .set_image(...) before mask prediction.")
+
+        if iter == 0:
+            first_prompt_pred = self.first_prompt_module(self.features)
+            point_coords, point_labels = self.first_prompt_module.decode_prediction(first_prompt_pred, first_threshold)
+        elif iter > 0:
+            # Get dense emb
+            sparse_embeddings, dense_embeddings = self.model.prompt_encoder(
+                points=None,
+                boxes=None,
+                masks=mask_input)
+            iterative_prompt_pred = self.iterative_prompt_module(self.features, dense_embeddings)
+            point_coords, point_labels = self.iterative_prompt_module.decode_prediction(
+                iterative_prompt_pred, iterative_threshold[0], iterative_threshold[1]
+            )
+        else:
+            raise AssertionError
+
+        points = (point_coords, point_labels)
+
+        # Embed prompts
+        sparse_embeddings, dense_embeddings = self.model.prompt_encoder(
+            points=points,
+            boxes=None,
+            masks=mask_input
+        )
+
+        # Predict masks
+        low_res_masks, iou_predictions = self.model.mask_decoder(
+            image_embeddings=self.features,
+            image_pe=self.model.prompt_encoder.get_dense_pe(),
+            sparse_prompt_embeddings=sparse_embeddings,
+            dense_prompt_embeddings=dense_embeddings,
+            multimask_output=multimask_output,
+        )
+
+        # Upscale the masks to the original image resolution
+        masks = self.model.postprocess_masks(low_res_masks, self.input_size, self.original_size)
+
+        if not return_logits:
+            masks = masks > self.model.mask_threshold
+
+        return masks, iou_predictions, low_res_masks, point_coords, point_labels
